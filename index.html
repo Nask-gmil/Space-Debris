@@ -8,29 +8,44 @@
 </head>
 <body>
     <div class="app">
-        <aside class="input-panel" aria-label="食べ物登録フォーム">
-            <h1>食べ物登録</h1>
-            <form class="food-form">
-                <label for="genreSelect">登録済みジャンル</label>
-                <select id="genreSelect" name="genreSelect">
-                    <option value="new" selected>＋ 新ジャンルを登録</option>
-                </select>
+        <aside class="input-panel" id="inputPanel" aria-label="食べ物登録フォーム">
+            <button type="button" class="panel-handle" id="inputPanelHandle" aria-expanded="false" aria-controls="inputPanelBody">
+                <span class="panel-handle-label">＋ 食べ物を登録</span>
+                <span class="panel-handle-icon" aria-hidden="true">▽</span>
+            </button>
+            <div class="panel-body" id="inputPanelBody">
+                <h1>食べ物登録</h1>
+                <form class="food-form">
+                    <label for="genreSelect">登録済みジャンル</label>
+                    <select id="genreSelect" name="genreSelect">
+                        <option value="new" selected>＋ 新ジャンルを登録</option>
+                    </select>
 
-                <label for="genreInput">ジャンル</label>
-                <input id="genreInput" name="genreInput" type="text" placeholder="例: ラーメン">
+                    <label for="genreInput">ジャンル</label>
+                    <input id="genreInput" name="genreInput" type="text" placeholder="例: ラーメン">
 
-                <label for="foodName">食べ物名</label>
-                <input id="foodName" name="foodName" type="text" placeholder="例: 味噌ラーメン">
+                    <label for="foodName">食べ物名</label>
+                    <input id="foodName" name="foodName" type="text" placeholder="例: 味噌ラーメン">
 
-                <label for="calories">カロリー</label>
-                <input id="calories" name="calories" type="number" min="0" placeholder="例: 500">
+                    <label for="calories">カロリー</label>
+                    <input id="calories" name="calories" type="number" min="0" placeholder="例: 500">
 
-                <button type="button">登録</button>
-                <p id="errorMessage" class="error-message" aria-live="polite"></p>
-            </form>
+                    <button type="button">登録</button>
+                    <p id="errorMessage" class="error-message" aria-live="polite"></p>
+                </form>
+            </div>
         </aside>
         <canvas id="canvas"></canvas>
-        <aside id="infoPanel" class="info-panel">星を選択してください</aside>
+        <aside class="info-panel" id="infoPanel" aria-label="星の詳細">
+            <button type="button" class="panel-handle info-panel-handle" id="infoPanelHandle" aria-expanded="false" aria-controls="infoPanelBody">
+                <span class="info-summary" id="infoSummary">
+                    <span class="info-summary-placeholder">星を選択してください</span>
+                </span>
+                <span class="panel-handle-icon" aria-hidden="true">△</span>
+            </button>
+            <div class="panel-body" id="infoPanelBody">星を選択してください</div>
+        </aside>
+        <div class="drawer-backdrop" id="drawerBackdrop"></div>
     </div>
     <script type="module" src="./src/app.js"></script>
 </body>

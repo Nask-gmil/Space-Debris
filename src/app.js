@@ -15,7 +15,16 @@ const LOCAL_STORAGE_KEY = 'spaceDebrisAppData'
 class SpaceDebrisApp {
   constructor() {
     this.canvas = document.getElementById('canvas')
-    this.infoPanel = document.getElementById('infoPanel')
+    // 星の詳細は #infoPanel 直下の .panel-body(#infoPanelBody) に描画する。
+    // #infoPanel 自体は「開閉ハンドル + panel-body」をまとめる外枠。
+    this.infoPanel = document.getElementById('infoPanelBody')
+    this.infoPanelOuter = document.getElementById('infoPanel')
+    this.infoPanelHandle = document.getElementById('infoPanelHandle')
+    this.infoSummaryEl = document.getElementById('infoSummary')
+
+    this.inputPanelOuter = document.getElementById('inputPanel')
+    this.inputPanelHandle = document.getElementById('inputPanelHandle')
+
     this.errorMessage = document.getElementById('errorMessage')
     this._lastPointerDown = null
     this.raycaster = new THREE.Raycaster()
@@ -72,6 +81,24 @@ class SpaceDebrisApp {
       this.infoPanel.addEventListener('click', (event) => this.onInfoPanelClick(event))
     }
 
+    // スマホ表示の開閉ハンドル(▽/△)。
+    // デスクトップ表示では常に開いた状態で表示されるため、
+    // ハンドル自体が非表示(CSS側)になり、クリックされることはない。
+    if (this.inputPanelHandle) {
+      this.inputPanelHandle.addEventListener('click', () => this.toggleInputPanel())
+    }
+    if (this.infoPanelHandle) {
+      this.infoPanelHandle.addEventListener('click', () => this.toggleInfoPanel())
+    }
+
+    const drawerBackdrop = document.getElementById('drawerBackdrop')
+    if (drawerBackdrop) {
+      drawerBackdrop.addEventListener('click', () => {
+        this.collapseInputPanel()
+        this.collapseInfoPanel()
+      })
+    }
+
     // 初期状態で新ジャンル選択時の入力欄を表示する
     this.onGenreSelectionChanged()
   }
@@ -123,6 +150,11 @@ class SpaceDebrisApp {
     this.refreshStarDisplay(targetStar)
     this.resetFoodForm()
     this.clearError()
+
+    // スマホ表示では、登録が完了したら入力ドロワーを閉じて
+    // 宇宙の様子(星が増えた/育った結果)がすぐ見えるようにする。
+    // デスクトップ表示ではこのクラス切り替えは見た目に影響しない。
+    this.collapseInputPanel()
 
     console.log('食べ物名:', foodName)
     console.log('ジャンル:', genre)
@@ -615,7 +647,73 @@ class SpaceDebrisApp {
       </div>
       ${foodListHtml}
     `
+
+    // パネルを閉じている(折りたたんでいる)間も見えるサマリー帯を更新する。
+    this.updateInfoSummary(name, calories, evolutionStage)
   }
+
+  // 折りたたみ状態でも見える、星のサマリー(名前・カロリー・進化段階)を更新する
+  updateInfoSummary(name, calories, evolutionStage) {
+    if (!this.infoSummaryEl) return
+    this.infoSummaryEl.innerHTML = `
+      <strong>${name}</strong>
+      <span class="info-summary-sep">・</span>
+      <span>${calories} kcal</span>
+      <span class="info-summary-sep">・</span>
+      <span>${evolutionStage}</span>
+    `
+  }
+
+  // ------- スマホ表示: ドロワーの開閉 -------
+  // 入力パネルと情報パネルは同時に画面いっぱい広がると紛らわしいため、
+  // 片方を開くときはもう片方を自動的に閉じるようにしている。
+
+  toggleInputPanel() {
+    if (!this.inputPanelOuter) return
+    const willExpand = !this.inputPanelOuter.classList.contains('is-expanded')
+    if (willExpand) {
+      this.collapseInfoPanel()
+    }
+    this.setPanelExpanded(this.inputPanelOuter, this.inputPanelHandle, willExpand)
+    this.updateDrawerBackdrop()
+  }
+
+  toggleInfoPanel() {
+    if (!this.infoPanelOuter) return
+    const willExpand = !this.infoPanelOuter.classList.contains('is-expanded')
+    if (willExpand) {
+      this.collapseInputPanel()
+    }
+    this.setPanelExpanded(this.infoPanelOuter, this.infoPanelHandle, willExpand)
+    this.updateDrawerBackdrop()
+  }
+
+  collapseInputPanel() {
+    this.setPanelExpanded(this.inputPanelOuter, this.inputPanelHandle, false)
+    this.updateDrawerBackdrop()
+  }
+
+  collapseInfoPanel() {
+    this.setPanelExpanded(this.infoPanelOuter, this.infoPanelHandle, false)
+    this.updateDrawerBackdrop()
+  }
+
+  setPanelExpanded(panelEl, handleEl, expanded) {
+    if (!panelEl) return
+    panelEl.classList.toggle('is-expanded', expanded)
+    if (handleEl) handleEl.setAttribute('aria-expanded', String(expanded))
+  }
+
+  updateDrawerBackdrop() {
+    const backdrop = document.getElementById('drawerBackdrop')
+    if (!backdrop) return
+    const anyExpanded =
+      (this.inputPanelOuter && this.inputPanelOuter.classList.contains('is-expanded')) ||
+      (this.infoPanelOuter && this.infoPanelOuter.classList.contains('is-expanded'))
+    backdrop.classList.toggle('is-visible', Boolean(anyExpanded))
+  }
+
+  // ------- ここまでドロワー開閉 -------
 
   onInfoPanelClick(event) {
     const button = event.target.closest('.food-delete-button')
@@ -687,6 +785,9 @@ class SpaceDebrisApp {
 
   setInfoPanelDefault() {
     if (this.infoPanel) this.infoPanel.innerText = DEFAULT_INFO_TEXT
+    if (this.infoSummaryEl) {
+      this.infoSummaryEl.innerHTML = `<span class="info-summary-placeholder">${DEFAULT_INFO_TEXT}</span>`
+    }
   }
 
   getUniverse() {
