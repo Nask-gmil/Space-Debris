@@ -5,6 +5,22 @@ export class StarManager {
   constructor() {
     this.stars = []
     this.starMap = new Map() // ID ベースのマップ（高速検索用）
+
+    // 【バグ修正】star.id を「配列の長さ」から決めていたため、
+    // 星を削除した後に新しい星を追加すると ID が重複し、
+    // starMap 内の既存の星の参照が上書きされてしまっていました。
+    // （このせいで、中心星などの削除が後から効かなくなるバグが発生していました）
+    //
+    // ここではアプリが動いている間ずっと増え続けるだけのカウンターを使い、
+    // 星をどれだけ削除しても ID が絶対に重複しないようにします。
+    this._nextId = 0
+  }
+
+  // 一意な ID を発行する
+  generateId() {
+    const id = this._nextId
+    this._nextId += 1
+    return id
   }
 
   // 星を生成
@@ -12,9 +28,11 @@ export class StarManager {
     const stars = []
     for (let i = 0; i < count; i++) {
       const star = this.createRandomStar(i)
+      const id = this.generateId()
+      star.id = id
       stars.push(star)
       this.stars.push(star)
-      this.starMap.set(i, star)
+      this.starMap.set(id, star)
     }
     return stars
   }
@@ -63,7 +81,7 @@ export class StarManager {
   // 星を追加
   addStar(star) {
     this.stars.push(star)
-    const id = this.stars.length - 1
+    const id = this.generateId()
     star.id = id
     this.starMap.set(id, star)
     return id

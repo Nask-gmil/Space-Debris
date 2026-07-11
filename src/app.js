@@ -352,6 +352,35 @@ class SpaceDebrisApp {
   }
 
   /**
+   * 読み込んだ食事履歴 (foods) の中に id を持たない古いデータがあれば、
+   * ここで新しく id を発行して補完します。
+   *
+   * 【なぜ必要か】
+   * 削除ボタンは `entry.id === foodId` で対象を探しています。
+   * id が undefined のままだと絶対に一致しないため、
+   * 削除ボタンを押しても food も星も一切消えない、という
+   * 分かりにくいバグの原因になっていました。
+   *
+   * @param {Array} foods - savedData.foods（無い場合もある）
+   * @returns {Array} id が必ず設定された foods 配列
+   */
+  migrateFoodEntries(foods) {
+    if (!Array.isArray(foods)) return []
+
+    return foods.map((entry) => {
+      if (entry && entry.id) return entry
+
+      return {
+        ...entry,
+        id:
+          typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : `food-${Date.now()}-${Math.floor(Math.random() * 1000000)}`,
+      }
+    })
+  }
+
+  /**
    * 保存された星データから Star オブジェクトを復元します。
    * localStorage の保存形式を統一しておけば、
    * 将来データベース保存へ移行しやすくなります。
@@ -390,7 +419,10 @@ class SpaceDebrisApp {
       orbitAngle,
       orbitSpeed: star.orbitSpeed,
       rotationSpeed: star.rotationSpeed,
-      foods: Array.isArray(savedData.foods) ? savedData.foods : [],
+      // 【保険】古いバージョンで保存された食事履歴に id が無い場合、
+      // 削除ボタンを押しても id が一致せず何も起こらないバグにつながるため、
+      // 読み込み時に必ず id を補完しておく。
+      foods: this.migrateFoodEntries(savedData.foods),
     }
 
     const sphere = new CentralSphere(evolutionSize, evolutionColor, emissive.color, emissive.intensity)
