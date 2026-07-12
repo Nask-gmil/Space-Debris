@@ -91,6 +91,11 @@ class SpaceDebrisApp {
       registerButton.addEventListener('click', () => this.onRegisterButtonClick())
     }
 
+    const supernovaButton = document.getElementById('supernovaButton')
+    if (supernovaButton) {
+      supernovaButton.addEventListener('click', () => this.onSupernovaButtonClick())
+    }
+
     if (this.infoPanel) {
       this.infoPanel.addEventListener('click', (event) => this.onInfoPanelClick(event))
     }
@@ -811,6 +816,23 @@ class SpaceDebrisApp {
 
   // ------- ここまでドロワー開閉 -------
 
+  /**
+   * 「本当に実行してよいか」を確認するための共通関数。
+   *
+   * 【なぜこの1関数にまとめているか】
+   * 今は window.confirm()(ブラウザ標準のOK/キャンセルダイアログ)をそのまま使っているが、
+   * 将来「宇宙の世界観に合わせたオリジナルの確認ダイアログ」に差し替えたくなったとき、
+   * 削除・編集保存・超新星爆発...と呼び出し箇所を1つずつ書き換えるのは大変。
+   * 確認処理の「入り口」をここ1箇所にまとめておけば、
+   * 差し替えるときはこの関数の中身だけを直せばよい。
+   *
+   * @param {string} message - 確認ダイアログに表示するメッセージ
+   * @returns {boolean} 「OK」が押されたら true、「キャンセル」なら false
+   */
+  confirmAction(message) {
+    return window.confirm(message)
+  }
+
   onInfoPanelClick(event) {
     // 編集モードの「キャンセル」ボタンが押された場合は、通常の詳細表示へ戻す
     const cancelButton = event.target.closest('.food-edit-cancel')
@@ -822,6 +844,10 @@ class SpaceDebrisApp {
     // 編集モードの「保存」ボタンが押された場合、入力内容を食事データへ書き込む
     const saveButton = event.target.closest('.food-edit-save')
     if (saveButton) {
+      // 保存前に必ず確認する。キャンセルなら何もせず、編集モードのまま・入力内容もそのまま残す
+      // (既存の saveEditedFoodEntry() には一切触れず、呼び出す前で止めるだけ)。
+      if (!this.confirmAction('本当に変更しますか？')) return
+
       this.saveEditedFoodEntry()
       return
     }
@@ -848,6 +874,11 @@ class SpaceDebrisApp {
     if (menuDeleteItem) {
       const foodId = menuDeleteItem.dataset.foodId
       if (!foodId) return
+
+      // 削除前に必ず確認する。キャンセルなら何もしない
+      // (deleteSelectedFoodEntry() は呼ばれないので、一覧・localStorage・星データは一切変わらない)。
+      if (!this.confirmAction('本当に削除しますか？')) return
+
       this.deleteSelectedFoodEntry(foodId)
       return
     }
@@ -976,6 +1007,96 @@ class SpaceDebrisApp {
     // 削除後は画面全体を最新状態に更新します。
     this.updateOrbitSpacing()
     this.refreshStarDisplay(this.selectedStar)
+  }
+
+  /**
+   * 「☄️ 超新星爆発」ボタンが押されたときの入り口。
+   * ここでは「本当に消していいか」の確認だけを行い、
+   * 実際の削除処理は triggerSupernova() に任せます
+   * (削除の実行と、確認ダイアログの表示を分けておくことで、
+   *  あとから確認方法だけ変えたくなったときに直しやすくするため)。
+   */
+  onSupernovaButtonClick() {
+    const starManager = this.universe.getStarManager()
+    const starCount = starManager.getCount()
+
+    if (starCount === 0) {
+      window.alert('宇宙にはまだ星がありません。')
+      return
+    }
+
+    // window.confirm() は、OK が押されると true、キャンセルが押されると false を返す。
+    // Java でいう「はい/いいえ」の確認ダイアログ (JOptionPane.showConfirmDialog) と同じ役割。
+    // 取り返しのつかない操作なので、実行前に必ずここで確認を挟む。
+    // (削除・編集保存と同じ confirmAction() を使うことで、確認処理の書き方を統一している)
+    const confirmed = this.confirmAction(
+      `本当に超新星爆発を起こしますか?\n\n` +
+        `現在登録されている星(${starCount}個)と、そこに記録した食事のデータは\n` +
+        `すべて消え、元に戻すことはできません。`
+    )
+
+    if (!confirmed) return
+
+    this.triggerSupernova()
+  }
+
+  /**
+   * 全ての星・食事データを削除し、宇宙をまっさらな状態に戻します。
+   *
+   * 【なぜ配列をコピー([...stars])してから forEach で回すのか】
+   * removeStarFromScene() の中で呼んでいる starManager.removeStarByInstance() は、
+   * StarManager が内部で持っている配列そのものを splice() で縮めます。
+   * その「元の配列」を直接 forEach で回すと、1つ消すたびに残りの要素の位置が
+   * 前へズレてしまい、一部の星が処理をスキップされてしまいます
+   * (Java で言うと、拡張for文でリストを直接 remove() すると
+   *  ConcurrentModificationException になるのと似た問題です)。
+   * そこで getAllStars() が返す配列を [...stars] でいったん複製し、
+   * 「今の中身のスナップショット」を作ってから回すことで、
+   * 元の配列が減っていっても全ての星を安全に処理できるようにしています。
+   */
+  triggerSupernova() {
+    const starManager = this.universe.getStarManager()
+    const stars = [...starManager.getAllStars()]
+
+    stars.forEach((star) => {
+      this.removeStarFromScene(star)
+    })
+
+    // 選択中の星・編集中の状態もリセットし、詳細パネルを初期表示に戻す
+    this.selectedStar = null
+    this.infoPanelMode = 'normal'
+    this.editingFoodId = null
+    this.setInfoPanelDefault()
+
+    // ジャンル選択肢も「＋ 新ジャンルを登録」だけの初期状態に戻す
+    this.resetGenreOptions()
+
+    // 星が0個になった状態を、既存の saveData()(登録・削除のときと同じ関数)で
+    // そのまま保存する。新しい保存処理はここでは作らない。
+    this.saveData()
+  }
+
+  /**
+   * ジャンル選択(select)を初期状態(「＋ 新ジャンルを登録」のみ)に戻します。
+   * 星を全部消したのに、ジャンルの選択肢だけ古いまま残ってしまうのを防ぐための処理。
+   */
+  resetGenreOptions() {
+    const genreSelect = document.getElementById('genreSelect')
+    const genreInput = document.getElementById('genreInput')
+    if (!genreSelect) return
+
+    // 「＋ 新ジャンルを登録」(value="new") 以外の option を全部取り除く
+    Array.from(genreSelect.options).forEach((option) => {
+      if (option.value !== 'new') {
+        genreSelect.removeChild(option)
+      }
+    })
+    genreSelect.value = 'new'
+
+    if (genreInput) {
+      genreInput.value = ''
+      genreInput.disabled = false
+    }
   }
 
   removeStarFromScene(star) {

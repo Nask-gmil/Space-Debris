@@ -179,6 +179,31 @@ canvas {
     display: none;
 }
 
+/* 「超新星爆発」ボタンを置くエリア。
+   通常の登録フォームとは区切り線で分けて、
+   誤って押されにくい・押す前に一呼吸置けるような見た目にしている。 */
+.danger-zone {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.supernova-button {
+    width: 100%;
+    height: 44px;
+    color: #ffd9d9;
+    background: rgba(255, 90, 90, 0.14);
+    border: 1px solid rgba(255, 120, 120, 0.4);
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.supernova-button:hover {
+    background: rgba(255, 90, 90, 0.26);
+}
+
 .error-message {
     min-height: 20px;
     color: #ff7b7b;
