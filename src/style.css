@@ -159,6 +159,73 @@ canvas {
     font-size: 16px;
 }
 
+/* 食事履歴の1件分のカード。
+   position: relative にすることで、中の⋮ボタンを
+   「このカードの右上」を基準に配置できるようにする。 */
+.food-item {
+    position: relative;
+    padding: 10px 34px 10px 4px; /* 右側だけ広めに空けて、⋮ボタンと文字が重ならないようにする */
+    margin-bottom: 8px;
+    list-style: none;
+}
+
+/* ⋮(三点メニュー)ボタン。
+   まだ押しても何も起きない見た目だけのボタン。 */
+.food-menu-button {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: #b9c2d8;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.food-menu-button:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* ⋮ボタンの下に出てくるメニュー本体。
+   普段は display: none で隠しておき、
+   .is-open が付いたときだけ表示する。 */
+.food-menu {
+    display: none;
+    position: absolute;
+    top: 36px;
+    right: 4px;
+    flex-direction: column;
+    min-width: 140px;
+    background: #1c2333;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+    overflow: hidden;
+    z-index: 5;
+}
+
+.food-menu.is-open {
+    display: flex;
+}
+
+.food-menu-item {
+    border: none;
+    background: transparent;
+    color: #e8ecf7;
+    font-size: 14px;
+    text-align: left;
+    padding: 10px 12px;
+    cursor: pointer;
+}
+
+.food-menu-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
 /* 折りたたみ状態でも見えるサマリー帯(名前・カロリー・進化段階)。
    デスクトップではハンドルごと非表示なので出番はない。 */
 .info-summary {
@@ -331,6 +398,28 @@ canvas {
 
     .info-panel h2 {
         font-size: 20px;
+    }
+
+    /* スマホは指でタップするので、PC版(32px)より少し大きめの
+       タップしやすいサイズ(44px)にする。 */
+    .food-menu-button {
+        width: 44px;
+        height: 44px;
+        font-size: 22px;
+    }
+
+    .food-item {
+        padding-right: 46px;
+    }
+
+    .food-menu {
+        top: 48px;
+        min-width: 160px;
+    }
+
+    .food-menu-item {
+        padding: 12px 14px;
+        font-size: 15px;
     }
 
     /* ドロワーが開いている間、背後を少し暗くして

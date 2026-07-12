@@ -81,6 +81,17 @@ class SpaceDebrisApp {
       this.infoPanel.addEventListener('click', (event) => this.onInfoPanelClick(event))
     }
 
+    // メニュー(⋮の中身)以外の場所がクリックされたら、開いているメニューを全部閉じる。
+    // ⋮ボタン自体とメニューの中は、ここでは何もしない
+    // (開閉自体は onInfoPanelClick / toggleFoodMenu 側の処理に任せる)。
+    document.addEventListener('click', (event) => {
+      const isInsideMenu = event.target.closest('.food-menu')
+      const isMenuButton = event.target.closest('.food-menu-button')
+      if (isInsideMenu || isMenuButton) return
+
+      this.closeAllFoodMenus()
+    })
+
     // スマホ表示の開閉ハンドル(▽/△)。
     // デスクトップ表示では常に開いた状態で表示されるため、
     // ハンドル自体が非表示(CSS側)になり、クリックされることはない。
@@ -630,11 +641,15 @@ class SpaceDebrisApp {
             ${foods
               .map(
                 (entry) => `
-                  <li>
+                  <li class="food-item">
+                    <button class="food-menu-button" data-food-id="${entry.id}" type="button" aria-label="メニューを開く">⋮</button>
+                    <div class="food-menu" data-food-menu-id="${entry.id}">
+                      <button class="food-menu-item" data-action="edit" data-food-id="${entry.id}" type="button">✏️ 食事を編集</button>
+                      <button class="food-menu-item" data-action="delete" data-food-id="${entry.id}" type="button">🗑️ 削除</button>
+                    </div>
                     <strong>${entry.name}</strong> — ${entry.calories} kcal<br>
                     ${entry.storeName ? `店名: ${entry.storeName}<br>` : '店名: なし<br>'}
-                    登録日時: ${new Date(entry.registeredAt).toLocaleString()}<br>
-                    <button class="food-delete-button" data-food-id="${entry.id}" type="button">削除</button>
+                    登録日時: ${new Date(entry.registeredAt).toLocaleString()}
                   </li>`
               )
               .join('')}
@@ -721,12 +736,50 @@ class SpaceDebrisApp {
   // ------- ここまでドロワー開閉 -------
 
   onInfoPanelClick(event) {
-    const button = event.target.closest('.food-delete-button')
-    if (!button) return
+    // ⋮ボタンが押された場合は、対応するメニューだけを開閉する
+    const menuButton = event.target.closest('.food-menu-button')
+    if (menuButton) {
+      this.toggleFoodMenu(menuButton.dataset.foodId)
+      return
+    }
 
-    const foodId = button.dataset.foodId
-    if (!foodId) return
-    this.deleteSelectedFoodEntry(foodId)
+    // メニュー内の「🗑️ 削除」が押された場合、既存の削除処理(deleteSelectedFoodEntry)を呼び出す
+    // ※以前あった常時表示の削除ボタンは廃止し、削除操作はこのメニュー経由に統一した
+    const menuDeleteItem = event.target.closest('.food-menu-item[data-action="delete"]')
+    if (menuDeleteItem) {
+      const foodId = menuDeleteItem.dataset.foodId
+      if (!foodId) return
+      this.deleteSelectedFoodEntry(foodId)
+      return
+    }
+  }
+
+  toggleFoodMenu(foodId) {
+    if (!this.infoPanel) return
+
+    // 今表示されている「すべての」メニュー(食事履歴の数だけある)を一旦取得する
+    const menus = this.infoPanel.querySelectorAll('.food-menu')
+
+    menus.forEach((menu) => {
+      const isTarget = menu.dataset.foodMenuId === foodId
+
+      if (!isTarget) {
+        // 自分以外のメニューは、開いていたら必ず閉じる
+        // (「複数同時に開かない」というルールをここで保証している)
+        menu.classList.remove('is-open')
+        return
+      }
+
+      // 自分自身は「開いていれば閉じる、閉じていれば開く」を切り替える
+      menu.classList.toggle('is-open')
+    })
+  }
+
+  closeAllFoodMenus() {
+    if (!this.infoPanel) return
+
+    const menus = this.infoPanel.querySelectorAll('.food-menu.is-open')
+    menus.forEach((menu) => menu.classList.remove('is-open'))
   }
 
   deleteSelectedFoodEntry(foodId) {
