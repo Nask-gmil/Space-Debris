@@ -311,11 +311,12 @@ export class Star {
     return `food-${Date.now()}-${Math.floor(Math.random() * 1000000)}`
   }
 
-  addFoodEntry(foodName, calories) {
+  addFoodEntry(foodName, calories, storeName = '') {
     const entry = {
       id: this.createFoodEntryId(),
       name: foodName,
       calories,
+      storeName,
       registeredAt: new Date().toISOString(),
     }
 

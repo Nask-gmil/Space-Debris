@@ -107,11 +107,13 @@ class SpaceDebrisApp {
     const foodNameInput = document.getElementById('foodName')
     const genreSelect = document.getElementById('genreSelect')
     const genreInput = document.getElementById('genreInput')
+    const storeNameInput = document.getElementById('storeName')
     const caloriesInput = document.getElementById('calories')
 
     const foodName = foodNameInput ? foodNameInput.value.trim() : ''
     const selectedGenre = genreSelect ? genreSelect.value : 'new'
     const genre = selectedGenre === 'new' ? (genreInput ? genreInput.value.trim() : '') : selectedGenre
+    const storeName = storeNameInput ? storeNameInput.value.trim() : ''
     const caloriesValue = caloriesInput ? caloriesInput.value.trim() : ''
     const calories = Number(caloriesValue)
     const validationError = this.validateRegistration(foodName, genre, caloriesValue, calories)
@@ -141,7 +143,7 @@ class SpaceDebrisApp {
     // 大きくなった星に合わせて外側の星を押し出す
     this.updateOrbitSpacing()
 
-    targetStar.addFoodEntry(foodName, calories)
+    targetStar.addFoodEntry(foodName, calories, storeName)
     const evolvedStage = targetStar.getEvolutionStage()
     console.log('対象の星:', targetStar.name || targetStar.data.name)
     console.log('進化段階:', evolvedStage)
@@ -517,6 +519,7 @@ class SpaceDebrisApp {
     const foodNameInput = document.getElementById('foodName')
     const genreSelect = document.getElementById('genreSelect')
     const genreInput = document.getElementById('genreInput')
+    const storeNameInput = document.getElementById('storeName')
     const caloriesInput = document.getElementById('calories')
 
     if (foodNameInput) foodNameInput.value = ''
@@ -525,6 +528,7 @@ class SpaceDebrisApp {
       genreInput.value = ''
       genreInput.disabled = false
     }
+    if (storeNameInput) storeNameInput.value = ''
     if (caloriesInput) caloriesInput.value = ''
     if (foodNameInput) foodNameInput.focus()
     this.onGenreSelectionChanged()
@@ -628,6 +632,7 @@ class SpaceDebrisApp {
                 (entry) => `
                   <li>
                     <strong>${entry.name}</strong> — ${entry.calories} kcal<br>
+                    ${entry.storeName ? `店名: ${entry.storeName}<br>` : '店名: なし<br>'}
                     登録日時: ${new Date(entry.registeredAt).toLocaleString()}<br>
                     <button class="food-delete-button" data-food-id="${entry.id}" type="button">削除</button>
                   </li>`
