@@ -12,6 +12,15 @@ const ORBIT_MARGIN = 6 // 星と星の間に確保する余白。後で調整し
 
 const LOCAL_STORAGE_KEY = 'spaceDebrisAppData'
 
+// 食事編集フォームに表示する入力項目。
+// 今後「写真」「メモ」などを追加したくなったら、この配列に1件足すだけでよい構造にしている。
+// ジャンルはここには含めない(別ジャンルにしたい場合は新しく登録する、という運用のため)。
+const FOOD_EDIT_FIELDS = [
+  { id: 'editStoreName', label: '店名', type: 'text', getValue: (entry) => entry.storeName || '' },
+  { id: 'editFoodName', label: '食べ物名', type: 'text', getValue: (entry) => entry.name || '' },
+  { id: 'editCalories', label: 'カロリー(kcal)', type: 'number', getValue: (entry) => entry.calories ?? '' },
+]
+
 class SpaceDebrisApp {
   constructor() {
     this.canvas = document.getElementById('canvas')
@@ -32,6 +41,11 @@ class SpaceDebrisApp {
     this.clock = new THREE.Clock()
 
     this.selectedStar = null
+    // 詳細パネルの「表示モード」。'normal'(通常表示) / 'edit'(食事編集)。
+    // 将来「stats(統計)」「achievements(実績)」なども、この仕組みに追加していく想定。
+    this.infoPanelMode = 'normal'
+    // 現在編集中の食事データのID。編集モードでなければ null。
+    this.editingFoodId = null
     this.setInfoPanelDefault()
     this.setupManagers()
     this.setupUniverse()
@@ -619,12 +633,32 @@ class SpaceDebrisApp {
     if (!this.infoPanel) return
 
     this.selectedStar = star
+    // 別の星を選び直したときは、編集中だった状態を必ず解除しておく
+    // (別の星なのに前の編集フォームが残ってしまう、という不具合を防ぐため)
+    this.infoPanelMode = 'normal'
+    this.editingFoodId = null
     this.renderSelectedStarInfo()
   }
 
+  // 詳細パネル(#infoPanelBody)は1つのまま、"今どのモードか" によって
+  // 描画する内容だけを切り替える。ここに新しいモードを追加していけば、
+  // 将来「統計」「実績」なども同じパネルの中に増やしていける。
   renderSelectedStarInfo() {
     if (!this.infoPanel || !this.selectedStar) return
 
+    switch (this.infoPanelMode) {
+      case 'edit':
+        this.renderFoodEditForm()
+        break
+      case 'normal':
+      default:
+        this.renderNormalStarInfo()
+        break
+    }
+  }
+
+  // 通常モード:星の詳細情報 + 食事履歴を表示する(これまで通りの内容)
+  renderNormalStarInfo() {
     const star = this.selectedStar
     const name = star.name || star.data.name || '名前なし'
     const calories = star.data.calories || 0
@@ -670,6 +704,48 @@ class SpaceDebrisApp {
 
     // パネルを閉じている(折りたたんでいる)間も見えるサマリー帯を更新する。
     this.updateInfoSummary(name, calories, evolutionStage)
+  }
+
+  // 食事編集フォームを描画する。
+  // FOOD_EDIT_FIELDS の配列から入力欄を自動生成しているので、
+  // 将来「写真」「メモ」などの項目を増やしたくなったら、
+  // 配列に1件追加するだけでこの関数を直さずに対応できる。
+  renderFoodEditForm() {
+    const star = this.selectedStar
+    // 既存の「IDで探す」というやり方(削除処理と同じ考え方)で、
+    // 編集対象の食事データそのものを取得する。
+    const foods = Array.isArray(star.data.foods) ? star.data.foods : []
+    const entry = foods.find((food) => food.id === this.editingFoodId)
+
+    if (!entry) {
+      // 編集中に削除されるなどしてデータが見つからない場合は、通常モードへ戻す
+      this.infoPanelMode = 'normal'
+      this.editingFoodId = null
+      this.renderNormalStarInfo()
+      return
+    }
+
+    // entry(食事データ)自体はここでは一切書き換えていない。
+    // 各入力欄の value には、getValue() で取り出した「今のデータの値」を
+    // そのまま表示しているだけで、保存ボタンを押すまでデータには触れない。
+    const fieldsHtml = FOOD_EDIT_FIELDS.map((field) => {
+      const currentValue = field.getValue(entry, star)
+      return `
+        <label for="${field.id}">${field.label}</label>
+        <input id="${field.id}" name="${field.id}" type="${field.type}" value="${currentValue}">
+      `
+    }).join('')
+
+    this.infoPanel.innerHTML = `
+      <h2>食事を編集</h2>
+      <div class="food-form food-edit-form" data-food-id="${this.editingFoodId}">
+        ${fieldsHtml}
+        <div class="food-edit-actions">
+          <button class="food-edit-save" type="button">保存</button>
+          <button class="food-edit-cancel" type="button">キャンセル</button>
+        </div>
+      </div>
+    `
   }
 
   // 折りたたみ状態でも見える、星のサマリー(名前・カロリー・進化段階)を更新する
@@ -736,10 +812,33 @@ class SpaceDebrisApp {
   // ------- ここまでドロワー開閉 -------
 
   onInfoPanelClick(event) {
+    // 編集モードの「キャンセル」ボタンが押された場合は、通常の詳細表示へ戻す
+    const cancelButton = event.target.closest('.food-edit-cancel')
+    if (cancelButton) {
+      this.cancelEditingFoodEntry()
+      return
+    }
+
+    // 編集モードの「保存」ボタンが押された場合、入力内容を食事データへ書き込む
+    const saveButton = event.target.closest('.food-edit-save')
+    if (saveButton) {
+      this.saveEditedFoodEntry()
+      return
+    }
+
     // ⋮ボタンが押された場合は、対応するメニューだけを開閉する
     const menuButton = event.target.closest('.food-menu-button')
     if (menuButton) {
       this.toggleFoodMenu(menuButton.dataset.foodId)
+      return
+    }
+
+    // メニュー内の「✏️ 食事を編集」が押された場合、詳細パネルを編集モードへ切り替える
+    const menuEditItem = event.target.closest('.food-menu-item[data-action="edit"]')
+    if (menuEditItem) {
+      const foodId = menuEditItem.dataset.foodId
+      if (!foodId) return
+      this.startEditingFoodEntry(foodId)
       return
     }
 
@@ -780,6 +879,68 @@ class SpaceDebrisApp {
 
     const menus = this.infoPanel.querySelectorAll('.food-menu.is-open')
     menus.forEach((menu) => menu.classList.remove('is-open'))
+  }
+
+  startEditingFoodEntry(foodId) {
+    console.log('編集開始')
+    console.log('id:', foodId)
+
+    // 「編集モード」に切り替えて、詳細パネルを編集フォームとして再描画する。
+    this.infoPanelMode = 'edit'
+    this.editingFoodId = foodId
+    this.renderSelectedStarInfo()
+  }
+
+  cancelEditingFoodEntry() {
+    // 「通常モード」に戻して、詳細パネルを元の表示に戻す。
+    this.infoPanelMode = 'normal'
+    this.editingFoodId = null
+    this.renderSelectedStarInfo()
+  }
+
+  saveEditedFoodEntry() {
+    const star = this.selectedStar
+    if (!star) return
+
+    // 削除・編集フォーム表示のときと同じ「IDで探す」やり方で、
+    // 書き換え対象の食事データそのもの(参照)を取得する。
+    const foods = Array.isArray(star.data.foods) ? star.data.foods : []
+    const entry = foods.find((food) => food.id === this.editingFoodId)
+    if (!entry) return
+
+    const storeNameInput = document.getElementById('editStoreName')
+    const foodNameInput = document.getElementById('editFoodName')
+    const caloriesInput = document.getElementById('editCalories')
+
+    const storeName = storeNameInput ? storeNameInput.value.trim() : ''
+    const foodName = foodNameInput ? foodNameInput.value.trim() : ''
+    const calories = caloriesInput ? Number(caloriesInput.value) : entry.calories
+
+    // 新しいオブジェクトや配列を作らず、既存の entry を直接書き換える。
+    // ジャンルはここでは変更しない(別ジャンルにしたい場合は新規登録で対応する運用のため)。
+    entry.name = foodName
+    entry.storeName = storeName
+    entry.calories = calories
+
+    // 食事データが変わったので、星の総カロリー・進化段階・見た目を計算し直す。
+    // これは削除処理(deleteSelectedFoodEntry)で使っているのと全く同じ、既存の再計算処理。
+    star.recalculateCaloriesFromFoods()
+    star.updateAppearance(star.getMesh())
+
+    // 書き換えた内容を localStorage へ保存する。
+    // 新しい保存処理は作らず、既存の saveData()(削除・登録のときと同じもの)を再利用する。
+    this.saveData()
+
+    // 星の大きさが変わった可能性があるので、星同士の間隔も既存の処理で調整し直す。
+    this.updateOrbitSpacing()
+
+    // 更新後は通常モードに戻す。
+    this.infoPanelMode = 'normal'
+    this.editingFoodId = null
+
+    // 詳細パネルも既存の refreshStarDisplay() で最新状態に描画し直す
+    // (削除処理の最後で使っているのと同じ関数)。
+    this.refreshStarDisplay(star)
   }
 
   deleteSelectedFoodEntry(foodId) {

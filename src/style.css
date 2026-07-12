@@ -138,6 +138,43 @@ canvas {
     background: #a4e0ff;
 }
 
+/* 編集フォームの「保存」「キャンセル」ボタンを横に並べる */
+.food-edit-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.food-edit-actions button {
+    flex: 1;
+    height: 44px;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.food-edit-save {
+    color: #06111f;
+    background: #7fd3ff;
+}
+
+.food-edit-save:hover {
+    background: #a4e0ff;
+}
+
+/* キャンセルは「保存」より控えめな見た目にして、間違って押しにくくする */
+.food-edit-cancel {
+    color: #e8ecf7;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(180, 205, 255, 0.28);
+}
+
+.food-edit-cancel:hover {
+    background: rgba(255, 255, 255, 0.16);
+}
+
 .new-genre-container {
     display: none;
 }
