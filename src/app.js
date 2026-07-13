@@ -1016,7 +1016,7 @@ class SpaceDebrisApp {
    * (削除の実行と、確認ダイアログの表示を分けておくことで、
    *  あとから確認方法だけ変えたくなったときに直しやすくするため)。
    */
-  onSupernovaButtonClick() {
+  async onSupernovaButtonClick() {
     const starManager = this.universe.getStarManager()
     const starCount = starManager.getCount()
 
@@ -1037,7 +1037,203 @@ class SpaceDebrisApp {
 
     if (!confirmed) return
 
+    // 【第7.1回で追加】
+    // 演出(赤くなる→膨らむ→爆発...)を今後実装するため、まずは
+    // 「どの星を演出対象にするか(＝最大カロリーの星)」をここで特定しておく。
+    // 今回はまだ演出はせず、取得した内容を確認できるようにするだけ。
+    const supernovaTarget = this.getMaxCalorieStar()
+    this.logSupernovaTarget(supernovaTarget)
+
+    // 演出対象は、次回以降の演出処理でも使えるようにインスタンス変数へ保存しておく。
+    this.supernovaTarget = supernovaTarget
+
+    // 【第7.2回で追加】
+    // 演出の第一段階として、対象の星の色を赤へ変え、約1秒間そのまま表示する。
+    // await を使っているので、この処理が終わる(＝1秒待ち終わる)まで、
+    // 下のリセット処理は実行されない。
+    await this.playSupernovaColorChange(supernovaTarget)
+
+    // 【第7.3回で追加】
+    // 演出の第二段階として、対象の星を膨張させながら色を変化させる。
+    // ここも await しているので、アニメーションが終わるまで次には進まない。
+    await this.playSupernovaExpansion(supernovaTarget)
+
+    // 取得処理のあとは、これまで通り既存の宇宙リセット処理を実行する(今回はここを変更しない)。
     this.triggerSupernova()
+  }
+
+  /**
+   * 超新星爆発の第二段階の演出:対象の星を膨張させながら、
+   * あらかじめ決めておいた色のパターンの順に色を変化させる。
+   *
+   * 【なぜ色を配列(パターン)で管理するか】
+   * 完全ランダムな色にせず、あらかじめ決めた並び順にすることで、
+   * 何度発動しても同じ雰囲気の演出になる。
+   * また、今後「色を増やしたい」「並び順を変えたい」となったときに、
+   * この配列(SUPERNOVA_COLOR_PATTERN)だけを直せばよいようにしている。
+   *
+   * 【なぜ requestAnimationFrame を使うか】
+   * setTimeout を使って何回かに分けて色・大きさを変える方法もあるが、
+   * それだとカクカクした動きになりやすい。
+   * requestAnimationFrame は「次に画面が描画されるタイミング」で毎回呼ばれるので、
+   * より滑らかなアニメーションになる。
+   *
+   * @param {{ mesh: THREE.Object3D|null } | null} target - getMaxCalorieStar() の戻り値
+   * @returns {Promise<void>}
+   */
+  playSupernovaExpansion(target) {
+    if (!target || !target.mesh || !target.mesh.material) return Promise.resolve()
+
+    const mesh = target.mesh
+    const duration = 1000 // 膨張にかける時間(ミリ秒)。約1秒。
+
+    // 現在のスケールを基準にする(すでにカロリーに応じて大きくなっている場合があるため、
+    // "1" 固定ではなく、今の mesh.scale.x を開始値として使う)
+    const startScale = mesh.scale.x || 1
+    const endScale = startScale * 2 // 現在の約2倍まで膨張させる
+
+    // 膨張中に切り替える色のパターン(今回は1パターン)。
+    // 配列の最後を必ず赤(0xff2200)にしておくことで、「最後は必ず赤色で終わる」を保証する。
+    const SUPERNOVA_COLOR_PATTERN = [0xff2200, 0xff6600, 0xffdd00, 0xff2200]
+
+    return new Promise((resolve) => {
+      const startTime = performance.now()
+
+      // 1フレームごとに呼ばれる関数。経過時間から progress(0〜1)を計算し、
+      // その割合に応じて scale と color をその都度書き換えていく。
+      const animateFrame = (now) => {
+        const elapsed = now - startTime
+        // progress は 0(開始直後) 〜 1(1秒経過) の間の値
+        const progress = Math.min(elapsed / duration, 1)
+
+        // 現在のスケールを、開始値〜終了値の間で少しずつ大きくしていく(線形補間)。
+        // 急に大きくなるのではなく、progress が少しずつ増えるごとに滑らかに拡大する。
+        const currentScale = startScale + (endScale - startScale) * progress
+        mesh.scale.set(currentScale, currentScale, currentScale)
+
+        // progress の進み具合に応じて、色パターンの中から「今表示する色」を選ぶ。
+        // 例えば4色パターンなら、0〜0.25で1色目、0.25〜0.5で2色目...という具合に区切られる。
+        const patternIndex = Math.min(
+          Math.floor(progress * SUPERNOVA_COLOR_PATTERN.length),
+          SUPERNOVA_COLOR_PATTERN.length - 1
+        )
+        mesh.material.color.set(SUPERNOVA_COLOR_PATTERN[patternIndex])
+
+        if (progress < 1) {
+          // まだ1秒経っていなければ、次のフレームでもう一度この関数を呼んでもらう
+          requestAnimationFrame(animateFrame)
+        } else {
+          // 念のため、最後は必ず配列の最後の色(赤)で終わるようにしておく
+          mesh.material.color.set(SUPERNOVA_COLOR_PATTERN[SUPERNOVA_COLOR_PATTERN.length - 1])
+          resolve()
+        }
+      }
+
+      requestAnimationFrame(animateFrame)
+    })
+  }
+
+  /**
+   * 指定したミリ秒だけ処理を待つためのヘルパー関数。
+   *
+   * 【なぜ必要か】
+   * JavaScriptの setTimeout() はそのままでは「〇秒後に実行する」ことしかできず、
+   * 「〇秒待ってから次の処理に進む」という書き方がしづらい。
+   * setTimeout を Promise で包んで await できるようにしておくと、
+   * 今回の「1秒待ってからリセットする」のような処理を、
+   * 上から下へ読める順番のまま書けるようになる。
+   * (Javaの Thread.sleep() に近いイメージだが、画面が固まらない点が異なる)
+   *
+   * @param {number} milliseconds - 待つ時間(ミリ秒)
+   * @returns {Promise<void>}
+   */
+  wait(milliseconds) {
+    return new Promise((resolve) => setTimeout(resolve, milliseconds))
+  }
+
+  /**
+   * 超新星爆発の第一段階の演出:対象の星の色だけを赤に変え、
+   * 「これから爆発する」ことが伝わるよう、そのまま約1秒間表示する。
+   *
+   * 【なぜ新しい星を作らず、既存のmeshの色だけ変えるか】
+   * 新しく星(Mesh)を作り直すと、位置や大きさなどの情報を持たせ直す必要が出てしまう。
+   * すでにシーンに表示されている mesh(target.mesh)の material.color を
+   * 書き換えるだけであれば、見た目の色以外は何も変わらないので安全。
+   * 星の種類・進化状態(this.data.type など)にも触れていない。
+   *
+   * @param {{ mesh: THREE.Object3D|null } | null} target - getMaxCalorieStar() の戻り値
+   * @returns {Promise<void>}
+   */
+  async playSupernovaColorChange(target) {
+    // 対象の星が無い、または mesh・material が取得できない場合は演出をスキップする
+    if (!target || !target.mesh || !target.mesh.material) return
+
+    // 「危険」「限界」をイメージした、強めの赤色に変更する。
+    // material.color.set() は、既存のマテリアルの色だけを書き換える
+    // (マテリアルやメッシュを新しく作り直しているわけではない)。
+    target.mesh.material.color.set(0xff2200)
+
+    // 赤くなった状態のまま約1秒間待ち、ユーザーが
+    // 「この星が爆発する」と認識できる時間を作る。
+    await this.wait(1000)
+  }
+
+  /**
+   * 現在ある星の中から「総カロリーが一番大きい星」を1つ取得する。
+   *
+   * 【なぜ必要か】
+   * 超新星爆発(メタボリックシンドローム)の演出は、今後
+   * 「一番育った(＝一番カロリーが高い)星」を対象に、
+   * 赤くなる→膨らむ→白く光る→爆発、という流れで進める予定。
+   * まずは「どの星が対象になるか」を正しく特定できる処理を、
+   * 再利用しやすいよう単独の関数として用意しておく。
+   *
+   * @returns {{ star: Star, mesh: THREE.Object3D|null, genre: string, totalCalories: number } | null}
+   *          星が1つも無い場合は null を返す
+   */
+  getMaxCalorieStar() {
+    const stars = this.universe.getStarManager().getAllStars()
+    if (stars.length === 0) return null
+
+    // reduce()で配列を1つずつ比較しながら「これまでで一番カロリーが高い星」に絞り込んでいく。
+    // Javaで言うと、for文の中で
+    //   if (current.calories > max.calories) { max = current; }
+    // をずっと繰り返しているのと同じことをしている。
+    const targetStar = stars.reduce((maxStar, currentStar) => {
+      const currentCalories = currentStar.data.calories || 0
+      const maxCalories = maxStar.data.calories || 0
+      return currentCalories > maxCalories ? currentStar : maxStar
+    })
+
+    // 今後の演出処理で扱いやすいように、必要な情報をひとまとめにして返す。
+    return {
+      star: targetStar,
+      mesh: typeof targetStar.getMesh === 'function' ? targetStar.getMesh() : null,
+      genre: targetStar.data.genre || '(ジャンル不明)',
+      totalCalories: targetStar.data.calories || 0,
+    }
+  }
+
+  /**
+   * 超新星爆発の対象になった星の情報を、確認用に console.log へ表示する。
+   * (演出そのものはまだ実装しない。あくまで「正しく取得できているか」の確認用)
+   *
+   * @param {{ star: Star, mesh: THREE.Object3D|null, genre: string, totalCalories: number } | null} target
+   */
+  logSupernovaTarget(target) {
+    if (!target) {
+      console.log('超新星爆発対象: 星が1つもありませんでした')
+      return
+    }
+
+    console.log('====================')
+    console.log('超新星爆発対象')
+    console.log('ジャンル：' + target.genre)
+    console.log('総カロリー：' + target.totalCalories + ' kcal')
+    console.log('====================')
+    // Three.js のオブジェクトそのものも確認できるように、そのままログへ渡す。
+    console.log('対象の星オブジェクト(Three.js mesh):', target.mesh)
+    console.log('対象の Star インスタンス:', target.star)
   }
 
   /**
