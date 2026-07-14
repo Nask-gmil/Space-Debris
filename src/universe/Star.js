@@ -156,8 +156,8 @@ export class Star {
    * 
    * 例えば EVOLUTION_STAGES は以下の構造：
    * [
-   *   { threshold: 500, stage: '岩' },
-   *   { threshold: 2000, stage: '衛星' },
+   *   { threshold: 300, stage: '小惑星' },
+   *   { threshold: 800, stage: '微惑星' },
    *   ...
    * ]
    * 
@@ -167,7 +167,7 @@ export class Star {
    * こうすることで、constants.js を変更するだけで
    * ルールを簡単に調整できます！
    * 
-   * @returns {string} 進化段階（岩、衛星、惑星、恒星、巨大恒星）
+   * @returns {string} 進化段階（小惑星、微惑星、準惑星、地球型惑星、巨大惑星、褐色矮星、赤色矮星、恒星、巨星、超巨星）
    */
   getEvolutionStage() {
     const calories = this.data.calories
@@ -188,25 +188,66 @@ export class Star {
    * 
    * 【初心者向け解説】
    * 進化段階ごとに定義されたサイズ（size）を constants.js から取得します。
-   * 岩は小さく、巨大恒星は大きくなります。
+   * 小惑星は小さく、超巨星は大きくなります。
    * 
    * この方式により、constants.js の size 値を変更するだけで
    * すべての星のサイズが自動的に変わります。
+   * 
+   * ただし最終段階「超巨星」だけは例外で、上限なく育ち続けます。
+   * 一つ前の段階（巨星）の閾値を超えた分について、
+   * constants.js の FINAL_STAGE_GROWTH（1000kcalごとに+5）を
+   * 使って追加サイズを計算し、基準サイズに足します。
    * 
    * @returns {number} SphereGeometry の半径
    */
   getEvolutionStageSize() {
     const calories = this.data.calories
+    const stages = Constants.EVOLUTION_STAGES
 
     // constants.js に定義された進化段階ルールを走査してサイズを取得
-    for (const rule of Constants.EVOLUTION_STAGES) {
+    for (let i = 0; i < stages.length; i++) {
+      const rule = stages[i]
       if (calories <= rule.threshold) {
+        // 最終段階（threshold: Infinity）なら、際限のない成長を計算する
+        if (rule.threshold === Infinity) {
+          return this.calculateFinalStageSize(calories, stages, i)
+        }
         return rule.size
       }
     }
 
-    // 念のため、全てに当てはまらなかった場合は最後のサイズを返す
-    return Constants.EVOLUTION_STAGES[Constants.EVOLUTION_STAGES.length - 1].size
+    // 念のため、全てに当てはまらなかった場合は最終段階の成長込みサイズを返す
+    return this.calculateFinalStageSize(calories, stages, stages.length - 1)
+  }
+
+  /**
+   * 最終進化段階（超巨星）のサイズを計算する
+   * 
+   * 【初心者向け解説】
+   * 「一つ前の段階（巨星）の閾値を何kcal超えているか」を求め、
+   * FINAL_STAGE_GROWTH.calorieStep（1000kcal）で割った数（＝何段階分成長したか）に
+   * FINAL_STAGE_GROWTH.sizeStep（5）を掛けて、基準サイズに足します。
+   * 
+   * 例: 巨星の閾値が8000、基準サイズが17の場合
+   * 　calories = 8001 → 8000kcalちょうどなので +0 → サイズ17
+   * 　calories = 9000 → 1000kcal超過 → +5 → サイズ22
+   * 　calories = 10000 → 2000kcal超過 → +10 → サイズ27
+   * 
+   * @param {number} calories - 現在のカロリー
+   * @param {Array} stages - Constants.EVOLUTION_STAGES
+   * @param {number} finalIndex - 最終段階（超巨星）のインデックス
+   * @returns {number} 成長込みのサイズ
+   */
+  calculateFinalStageSize(calories, stages, finalIndex) {
+    const finalStage = stages[finalIndex]
+    // 超巨星になる直前の段階（＝一つ前の要素）の閾値を「成長の起点」にする
+    const previousThreshold = finalIndex > 0 ? stages[finalIndex - 1].threshold : 0
+    const growth = Constants.FINAL_STAGE_GROWTH
+
+    const excessCalories = Math.max(0, calories - previousThreshold)
+    const growthSteps = Math.floor(excessCalories / growth.calorieStep)
+
+    return finalStage.size + growthSteps * growth.sizeStep
   }
 
   /**
@@ -214,7 +255,7 @@ export class Star {
    * 
    * 【初心者向け解説】
    * 進化段階ごとに定義された色（color）を constants.js から取得します。
-   * 岩は灰色、巨大恒星は赤になります。
+   * 小惑星は灰色、超巨星は赤になります。
    * 
    * この方式により、constants.js の color 値を変更するだけで
    * すべての星の色が自動的に変わります。
@@ -239,11 +280,13 @@ export class Star {
    * 進化段階に基づいて、発光（emissive）の強度を取得する
    * 
    * 【初心者向け解説】
-   * 恒星以上の進化段階では、少し発光させる効果を出します。
-   * emissive は「自ら光を放つ」というマテリアルプロパティです。
+   * 「自ら光を放つ天体かどうか」は、constants.js 側の
+   * 各進化段階に付けた emissive: true / false フラグで判定します。
+   * （褐色矮星以降が true。閾値の数値をここに直接書かないことで、
+   *  今後 constants.js の段階数や閾値を調整しても、この関数は直さずに済みます）
    * 
-   * 重くならないように、恒星以上だけに emissive を適用します。
-   * それより下の段階は emissiveIntensity = 0 で発光なし。
+   * 重くならないように、emissive: true の段階だけに発光効果を適用します。
+   * それ以外の段階は emissiveIntensity = 0 で発光なし。
    * 
    * @returns {object} { color（16進カラーコード）, intensity（0～1の数値） }
    */
@@ -253,11 +296,10 @@ export class Star {
     // constants.js に定義された進化段階ルールを走査
     for (const rule of Constants.EVOLUTION_STAGES) {
       if (calories <= rule.threshold) {
-        // 恒星（threshold: 10000）以上なら発光させる
-        if (rule.threshold >= 10000) {
+        // emissive: true の段階のみ発光させる
+        if (rule.emissive) {
           return { color: rule.color, intensity: 0.3 }
         } else {
-          // それより下は発光なし
           return { color: 0x000000, intensity: 0 }
         }
       }
@@ -265,7 +307,7 @@ export class Star {
 
     // 念のため、全てに当てはまらなかった場合は最後の段階をチェック
     const lastRule = Constants.EVOLUTION_STAGES[Constants.EVOLUTION_STAGES.length - 1]
-    if (lastRule.threshold >= 10000) {
+    if (lastRule.emissive) {
       return { color: lastRule.color, intensity: 0.3 }
     }
     return { color: 0x000000, intensity: 0 }

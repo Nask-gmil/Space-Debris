@@ -1267,14 +1267,17 @@ class SpaceDebrisApp {
     // "1" 固定ではなく、今の mesh.scale.x を開始値として使う)
     const startScale = mesh.scale.x || 1
 
-    // 「巨大惑星(最終進化段階)」の3倍のサイズまで膨張させる。
-    // EVOLUTION_STAGES の一番最後の要素が最終進化段階のサイズなので、それを3倍にする。
+    // 「超巨星(最終進化段階)」の3倍のサイズまで膨張させる。
+    // ※超巨星は8000kcalを超えると際限なく成長し続けるため(1000kcalごとに+5)、
+    //   constants.js の固定サイズではなく、対象の星の"今の"実際のサイズを
+    //   getEvolutionStageSize() で取得して使う(そうしないと、すでに大きく育った星では
+    //   「3倍」のはずが今より小さくなってしまう場合があるため)。
     // mesh.scale は「初期サイズ(initialSize)を1としたときの倍率」で管理されているため、
     // 目標サイズをそのまま initialSize で割って、目標の scale 値に変換している。
-    const finalEvolutionSize = Constants.EVOLUTION_STAGES[Constants.EVOLUTION_STAGES.length - 1].size
+    const currentEvolutionSize = star.getEvolutionStageSize()
     const endScale =
       star.initialSize > 0
-        ? (finalEvolutionSize * 3) / star.initialSize
+        ? (currentEvolutionSize * 3) / star.initialSize
         : startScale * 3 // 万が一 initialSize が取得できない場合の保険
 
     // あらかじめ用意した色パターンの中から、今回はどれを使うかをランダムに選ぶ
