@@ -204,6 +204,46 @@ canvas {
     background: rgba(255, 90, 90, 0.26);
 }
 
+/* 超新星爆発の最後に、画面全体を一瞬白くフラッシュさせるための要素。
+   普段は opacity: 0 で透明・pointer-events: none でクリックも透過するので、
+   通常時のレイアウトや操作には一切影響しない。
+   opacity の変化(白→透明)は JavaScript 側(app.js)で制御する。 */
+.supernova-flash {
+    position: fixed;
+    inset: 0;
+    background-color: #ffffff;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 9999;
+}
+
+/* 超新星爆発の締めくくりに表示する「新しい宇宙が誕生しました」メッセージ。
+   pointer-events: none にしているので、表示中も裏側のボタンなどの
+   通常操作は妨げない(クリックがそのまま下の要素へ届く)。
+   opacity の変化(表示→フェードアウト)は JavaScript 側(app.js)で制御する。 */
+.supernova-message {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10000;
+    max-width: min(90vw, 420px);
+    padding: 20px 28px;
+    background: rgba(10, 10, 24, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 12px;
+    color: #f5f5ff;
+    font-size: 15px;
+    line-height: 1.8;
+    text-align: center;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.supernova-message p {
+    margin: 0;
+}
+
 .error-message {
     min-height: 20px;
     color: #ff7b7b;

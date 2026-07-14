@@ -6,6 +6,7 @@ import { CameraController } from './controls/CameraController.js'
 import { Universe } from './universe/Universe.js'
 import { Star } from './universe/Star.js'
 import { CentralSphere } from './universe/CentralSphere.js'
+import { Constants } from './utils/constants.js'
 
 const DEFAULT_INFO_TEXT = '星を選択してください'
 const ORBIT_MARGIN = 6 // 星と星の間に確保する余白。後で調整しやすいように定数化。
@@ -20,6 +21,157 @@ const FOOD_EDIT_FIELDS = [
   { id: 'editFoodName', label: '食べ物名', type: 'text', getValue: (entry) => entry.name || '' },
   { id: 'editCalories', label: 'カロリー(kcal)', type: 'number', getValue: (entry) => entry.calories ?? '' },
 ]
+
+// 超新星爆発の演出で使う色の名前 → 実際の色コードの対応表。
+// パターン配列側は色コードを直書きせずこの名前を使うことで、
+// 後から色味だけを調整したくなったときにここ1箇所を直せばよいようにしている。
+const SUPERNOVA_COLORS = {
+  RED: 0xff2200,
+  DARK_RED: 0x660000,
+  PURPLE: 0x9900ff,
+  BLUE: 0x0044ff,
+  GREEN: 0x00ff44,
+  // 完全な黒(0x000000)だと宇宙背景に完全に溶け込んで「消えた」ように見えてしまうため、
+  // わずかに明るくして「黒っぽい色」として見えるようにしている。
+  BLACK: 0x0d0d0d,
+  ORANGE: 0xff6600,
+  YELLOW: 0xffdd00,
+  WHITE: 0xffffff,
+}
+
+// 超新星爆発のたびに、この中から1つをランダムに選んで使う色変化パターン。
+// 完全ランダムな色にはせず、あらかじめ決めた並び順の中から選ぶことで、
+// 毎回「それらしい」配色になるようにしている。
+// どのパターンも必ず最後は赤(RED)で終わる(この後リセットへつながるため)。
+const SUPERNOVA_COLOR_PATTERNS = [
+  // パターンA(暴走型): エネルギー暴走→重力崩壊
+  [
+    SUPERNOVA_COLORS.RED,
+    SUPERNOVA_COLORS.PURPLE,
+    SUPERNOVA_COLORS.BLUE,
+    SUPERNOVA_COLORS.GREEN,
+    SUPERNOVA_COLORS.BLACK,
+    SUPERNOVA_COLORS.RED,
+  ],
+  // パターンB(点滅型): 警報・危険演出
+  [
+    SUPERNOVA_COLORS.RED,
+    SUPERNOVA_COLORS.PURPLE,
+    SUPERNOVA_COLORS.RED,
+    SUPERNOVA_COLORS.BLUE,
+    SUPERNOVA_COLORS.RED,
+    SUPERNOVA_COLORS.BLACK,
+    SUPERNOVA_COLORS.RED,
+  ],
+  // パターンC(侵食型): 少しずつ壊れていく演出
+  [
+    SUPERNOVA_COLORS.RED,
+    SUPERNOVA_COLORS.DARK_RED,
+    SUPERNOVA_COLORS.PURPLE,
+    SUPERNOVA_COLORS.BLACK,
+    SUPERNOVA_COLORS.RED,
+  ],
+  // パターンD(エネルギー暴走型): 恒星らしい発光
+  [
+    SUPERNOVA_COLORS.RED,
+    SUPERNOVA_COLORS.ORANGE,
+    SUPERNOVA_COLORS.YELLOW,
+    SUPERNOVA_COLORS.WHITE,
+    SUPERNOVA_COLORS.RED,
+  ],
+  // パターンE(カオス型): 異常現象を強調
+  [
+    SUPERNOVA_COLORS.RED,
+    SUPERNOVA_COLORS.GREEN,
+    SUPERNOVA_COLORS.PURPLE,
+    SUPERNOVA_COLORS.BLUE,
+    SUPERNOVA_COLORS.BLACK,
+    SUPERNOVA_COLORS.RED,
+  ],
+  // パターンF(宇宙崩壊型): 宇宙の法則が壊れる演出
+  [
+    SUPERNOVA_COLORS.RED,
+    SUPERNOVA_COLORS.PURPLE,
+    SUPERNOVA_COLORS.BLACK,
+    SUPERNOVA_COLORS.BLUE,
+    SUPERNOVA_COLORS.GREEN,
+    SUPERNOVA_COLORS.PURPLE,
+    SUPERNOVA_COLORS.BLACK,
+    SUPERNOVA_COLORS.RED,
+  ],
+]
+
+// 超新星爆発の演出で表示するメッセージを、カテゴリ(種類)ごとに管理する定数。
+//
+// 【なぜ配列・オブジェクトで管理するのか】
+// メッセージの文言をコードのあちこちに直接書いてしまうと、
+// 「文言を直したい」「メッセージを増やしたい」となったときに
+// 修正箇所を探すのが大変になる。ここに1箇所へまとめておくことで、
+// 文言の追加・変更がこの定数だけを直せば済むようにしている。
+//
+// 【なぜカテゴリ(NORMAL / OVER_CALORIE)で分けているのか】
+// NORMAL(通常イベント)は「新しい宇宙が始まった」という前向きな内容だが、
+// OVER_CALORIE(特殊イベント:カロリーオーバー)は「食べすぎに注意しましょう」という、
+// 少し注意喚起を含んだトーンのメッセージになっている。
+// 同じ配列に混ぜてランダム選択してしまうと、
+// 「食べすぎで爆発したのに、通常の前向きなメッセージだけが出る」
+// 「食べすぎていないのに、食べすぎ注意メッセージが出る」といった、
+// 状況に合わないメッセージが表示されてしまう可能性がある。
+// 最初から「カテゴリ名 → メッセージ配列」という形で管理しておけば、
+// 新しいカテゴリ(例: ACHIEVEMENT, RARE)を追加したいときも、
+// このオブジェクトに新しいキーを1つ足すだけで対応できる。
+const SUPERNOVA_MESSAGES = {
+  // 通常イベント用メッセージ(9種類)。超新星爆発のたびにランダムで1つ選ばれる。
+  NORMAL: [
+    '🌌 超新星爆発(メタボリックシンドローム)が発生!\n宇宙は新たな姿へと生まれ変わりました。\nさあ、新たな星を探しに行きましょう! 🚀',
+    '🌠 超新星爆発(メタボリックシンドローム)を観測しました。\n新たな宇宙が誕生しています。\n未知の星々を探査しましょう。',
+    '🚀 メタボリックシンドロームにより宇宙が一新されました!\n新たな星々との出会いがあなたを待っています。\n冒険を再開しましょう!',
+    '🎮 イベント完了!\n超新星爆発(メタボリックシンドローム)が発生しました。\n新しい宇宙で次の記録を始めましょう!',
+    '✨ 宇宙は終わりを迎え、そして再び始まりました。\n超新星爆発(メタボリックシンドローム)が新たな宇宙を生み出しました。\n次の物語を始めましょう。',
+    '📡 宇宙観測ログ更新\n・超新星爆発(メタボリックシンドローム)を確認\n・新規宇宙の生成を確認\n・探索を再開してください',
+    '⭐ ひとつの星は役目を終えました。\n超新星爆発(メタボリックシンドローム)により、新しい宇宙が誕生しました。\n次はどんな星を育てますか?',
+    '🌌 超新星爆発(メタボリックシンドローム)が発生!\n食べたカロリーは宇宙を巡り、新たな星々を生み出しました。\nさあ、新たな星を探しに行きましょう! 🚀',
+    '🏆 超新星爆発(メタボリックシンドローム)が発生しました!\n宇宙は新たな姿へと生まれ変わりました。\nまだ見ぬ実績と星々があなたを待っています。',
+  ],
+  // 特殊イベント用メッセージ(カロリーオーバー、総カロリー80,000kcal以上のとき用)。
+  OVER_CALORIE: [
+    '🍔 食べすぎ注意!?\n超新星爆発(メタボリックシンドローム)が発生しました!\n新しい宇宙ではバランスよく星を育てましょう!',
+    '⚠ カロリーが限界を超えました!\nメタボリックシンドロームが発生!\n少し休憩して、新しい宇宙を育てましょう。',
+    '🍕 エネルギーが限界まで蓄積されました!\n超新星爆発(メタボリックシンドローム)が発生!\n食べすぎにはご注意を!',
+    '🍩 これ以上は宇宙も耐えられません!\nメタボリックシンドローム発生!\n新しい宇宙では健康的な星づくりを目指しましょう!',
+    '🍜 宇宙のカロリーが飽和しました!\n超新星爆発(メタボリックシンドローム)を確認。\n次の宇宙では食べすぎ注意です!',
+  ],
+  // 【将来の拡張イメージ(今回は未実装)】
+  // ACHIEVEMENT: ['...実績解除イベント用のメッセージ...'],
+  // のように、新しいカテゴリ名をキーとして配列を追加していくだけで対応できる。
+}
+
+// どの条件のときに、どのメッセージカテゴリを使うかを表すルール一覧。
+// 上から順にチェックし、条件(condition)に最初に一致したカテゴリを使う。
+// どれにも一致しなければ、通常イベント(NORMAL)を使う。
+//
+// 【なぜ if文を増やす代わりにこの形にしているのか】
+// 「もし〇〇なら特殊メッセージ、もし△△ならレアメッセージ、それ以外は通常」
+// と条件が増えるたびに if / else if を継ぎ足していく書き方だと、
+// カテゴリが増えるほどコードが長く・読みにくくなってしまう。
+// 代わりに「条件を判定する関数(condition) → 使うカテゴリ名(category)」を
+// 1セットにして配列に並べておけば、カテゴリを決める処理そのものは
+// 「配列を上から順に見て、最初に条件に合ったものを使う」という
+// 共通の仕組み1つだけで済む。
+//
+// 【将来カテゴリを増やす方法】
+// 例えば「実績を解除した直後は ACHIEVEMENT を使いたい」となったら、
+//   { category: 'ACHIEVEMENT', condition: (totalCalories, context) => context.justUnlockedAchievement },
+// のような要素をこの配列に1件足すだけでよい(if文を増やす必要はない)。
+const SUPERNOVA_MESSAGE_CATEGORY_RULES = [
+  {
+    category: 'OVER_CALORIE',
+    condition: (totalCalories) => totalCalories >= 80000,
+  },
+]
+
+// どの条件にも当てはまらなかったときに使う、既定のメッセージカテゴリ。
+const DEFAULT_SUPERNOVA_MESSAGE_CATEGORY = 'NORMAL'
 
 class SpaceDebrisApp {
   constructor() {
@@ -1047,6 +1199,12 @@ class SpaceDebrisApp {
     // 演出対象は、次回以降の演出処理でも使えるようにインスタンス変数へ保存しておく。
     this.supernovaTarget = supernovaTarget
 
+    // 【今回追加】
+    // 対象の星の総カロリーを、締めくくりのメッセージ選択(通常/特殊)の判定に使うため、
+    // ここで控えておく(宇宙リセットが終わると星のデータ自体が無くなってしまうため、
+    // リセットより前のこのタイミングで値を取り出しておく必要がある)。
+    const totalCalories = supernovaTarget ? supernovaTarget.totalCalories : 0
+
     // 【第7.2回で追加】
     // 演出の第一段階として、対象の星の色を赤へ変え、約1秒間そのまま表示する。
     // await を使っているので、この処理が終わる(＝1秒待ち終わる)まで、
@@ -1058,19 +1216,36 @@ class SpaceDebrisApp {
     // ここも await しているので、アニメーションが終わるまで次には進まない。
     await this.playSupernovaExpansion(supernovaTarget)
 
-    // 取得処理のあとは、これまで通り既存の宇宙リセット処理を実行する(今回はここを変更しない)。
-    this.triggerSupernova()
+    // 【第7.4回で追加】
+    // 演出の第三段階として、星を白色へ変化させ、白色のまま約0.4秒静止させる。
+    // 「限界状態」を表現するステップ。この関数の戻り値(Promise)が解決した時点が、
+    // 次回(第7.5回)実装予定の「爆発」処理の開始地点になる想定。
+    await this.playSupernovaWhiteout(supernovaTarget)
+
+    // 【第7.5回で追加】
+    // 白色になって静止していた星を、超新星爆発として宇宙から消滅させる。
+    this.playSupernovaExplosion(supernovaTarget)
+
+    // 【第7.6回で追加】
+    // 画面全体を白くフラッシュさせ、白い間に既存の宇宙リセット処理を実行し、
+    // 最後に白をゆっくり透明へ戻す。詳しくは playSupernovaFlashAndReset() 側のコメントを参照。
+    await this.playSupernovaFlashAndReset()
+
+    // 【第7.7回で追加】
+    // 演出の締めくくりとして、「新しい宇宙が誕生しました」のメッセージを表示する。
+    // 【今回追加】総カロリーを渡すことで、内部でメッセージカテゴリ(通常/特殊)を切り替える。
+    await this.playSupernovaMessage(totalCalories)
   }
 
   /**
    * 超新星爆発の第二段階の演出:対象の星を膨張させながら、
-   * あらかじめ決めておいた色のパターンの順に色を変化させる。
+   * あらかじめ用意した色パターンの中からランダムに選んだ1つの順で色を変化させる。
    *
    * 【なぜ色を配列(パターン)で管理するか】
-   * 完全ランダムな色にせず、あらかじめ決めた並び順にすることで、
-   * 何度発動しても同じ雰囲気の演出になる。
-   * また、今後「色を増やしたい」「並び順を変えたい」となったときに、
-   * この配列(SUPERNOVA_COLOR_PATTERN)だけを直せばよいようにしている。
+   * 完全ランダムな色にせず、あらかじめ決めた並び順のパターンをいくつか用意し、
+   * 発動のたびにその中から1つを選ぶことで、「毎回違う雰囲気だけど、それらしい配色」になる。
+   * パターン自体はファイル先頭の SUPERNOVA_COLOR_PATTERNS にまとめてあるので、
+   * 増やしたり並びを変えたいときはそこだけ直せばよい。
    *
    * 【なぜ requestAnimationFrame を使うか】
    * setTimeout を使って何回かに分けて色・大きさを変える方法もあるが、
@@ -1078,23 +1253,32 @@ class SpaceDebrisApp {
    * requestAnimationFrame は「次に画面が描画されるタイミング」で毎回呼ばれるので、
    * より滑らかなアニメーションになる。
    *
-   * @param {{ mesh: THREE.Object3D|null } | null} target - getMaxCalorieStar() の戻り値
+   * @param {{ mesh: THREE.Object3D|null, star: Star } | null} target - getMaxCalorieStar() の戻り値
    * @returns {Promise<void>}
    */
   playSupernovaExpansion(target) {
-    if (!target || !target.mesh || !target.mesh.material) return Promise.resolve()
+    if (!target || !target.mesh || !target.mesh.material || !target.star) return Promise.resolve()
 
     const mesh = target.mesh
-    const duration = 1000 // 膨張にかける時間(ミリ秒)。約1秒。
+    const star = target.star
+    const duration = 2000 // 膨張にかける時間(ミリ秒)。約2秒。
 
     // 現在のスケールを基準にする(すでにカロリーに応じて大きくなっている場合があるため、
     // "1" 固定ではなく、今の mesh.scale.x を開始値として使う)
     const startScale = mesh.scale.x || 1
-    const endScale = startScale * 2 // 現在の約2倍まで膨張させる
 
-    // 膨張中に切り替える色のパターン(今回は1パターン)。
-    // 配列の最後を必ず赤(0xff2200)にしておくことで、「最後は必ず赤色で終わる」を保証する。
-    const SUPERNOVA_COLOR_PATTERN = [0xff2200, 0xff6600, 0xffdd00, 0xff2200]
+    // 「巨大惑星(最終進化段階)」の3倍のサイズまで膨張させる。
+    // EVOLUTION_STAGES の一番最後の要素が最終進化段階のサイズなので、それを3倍にする。
+    // mesh.scale は「初期サイズ(initialSize)を1としたときの倍率」で管理されているため、
+    // 目標サイズをそのまま initialSize で割って、目標の scale 値に変換している。
+    const finalEvolutionSize = Constants.EVOLUTION_STAGES[Constants.EVOLUTION_STAGES.length - 1].size
+    const endScale =
+      star.initialSize > 0
+        ? (finalEvolutionSize * 3) / star.initialSize
+        : startScale * 3 // 万が一 initialSize が取得できない場合の保険
+
+    // あらかじめ用意した色パターンの中から、今回はどれを使うかをランダムに選ぶ
+    const colorPattern = this.pickSupernovaColorPattern()
 
     return new Promise((resolve) => {
       const startTime = performance.now()
@@ -1103,7 +1287,7 @@ class SpaceDebrisApp {
       // その割合に応じて scale と color をその都度書き換えていく。
       const animateFrame = (now) => {
         const elapsed = now - startTime
-        // progress は 0(開始直後) 〜 1(1秒経過) の間の値
+        // progress は 0(開始直後) 〜 1(2秒経過) の間の値
         const progress = Math.min(elapsed / duration, 1)
 
         // 現在のスケールを、開始値〜終了値の間で少しずつ大きくしていく(線形補間)。
@@ -1111,26 +1295,314 @@ class SpaceDebrisApp {
         const currentScale = startScale + (endScale - startScale) * progress
         mesh.scale.set(currentScale, currentScale, currentScale)
 
-        // progress の進み具合に応じて、色パターンの中から「今表示する色」を選ぶ。
-        // 例えば4色パターンなら、0〜0.25で1色目、0.25〜0.5で2色目...という具合に区切られる。
+        // progress の進み具合に応じて、選んだ色パターンの中から「今表示する色」を選ぶ。
+        // 例えば5色パターンなら、0〜0.2で1色目、0.2〜0.4で2色目...という具合に区切られる。
         const patternIndex = Math.min(
-          Math.floor(progress * SUPERNOVA_COLOR_PATTERN.length),
-          SUPERNOVA_COLOR_PATTERN.length - 1
+          Math.floor(progress * colorPattern.length),
+          colorPattern.length - 1
         )
-        mesh.material.color.set(SUPERNOVA_COLOR_PATTERN[patternIndex])
+        mesh.material.color.set(colorPattern[patternIndex])
 
         if (progress < 1) {
-          // まだ1秒経っていなければ、次のフレームでもう一度この関数を呼んでもらう
+          // まだ2秒経っていなければ、次のフレームでもう一度この関数を呼んでもらう
           requestAnimationFrame(animateFrame)
         } else {
-          // 念のため、最後は必ず配列の最後の色(赤)で終わるようにしておく
-          mesh.material.color.set(SUPERNOVA_COLOR_PATTERN[SUPERNOVA_COLOR_PATTERN.length - 1])
+          // 念のため、最後は必ずパターン配列の最後の色(必ず赤になるよう用意している)で終わらせる
+          mesh.material.color.set(colorPattern[colorPattern.length - 1])
           resolve()
         }
       }
 
       requestAnimationFrame(animateFrame)
     })
+  }
+
+  /**
+   * 超新星爆発の締めくくりの演出:通常イベント用メッセージの中からランダムに1つを選び、
+   * 画面中央へ表示して、約3秒後にゆっくりフェードアウトさせる。
+   *
+   * 【なぜ最後にメッセージを表示するのか】
+   * ここまでの演出(爆発 → フラッシュ → リセット)だけで終わらせてしまうと、
+   * ユーザーには「データが消えてしまった」というマイナスな印象だけが
+   * 残りかねない。最後に前向きなメッセージを見せることで、
+   * これは「終わり」ではなく「新しい宇宙の始まり」であることを伝える。
+   *
+   * 【なぜフェードアウトするのか】
+   * メッセージを急に消すと、ここでも唐突な印象になってしまう。
+   * ゆっくり消えていくことで、超新星爆発から続く一連の演出全体を
+   * 自然な形で締めくくることができる。
+   *
+   * 【なぜ通常操作へ戻すのか(妨げないようにしているか)】
+   * この演出はあくまで見た目の締めくくりであり、
+   * 星の登録・編集・削除などの通常操作を止めてしまってはいけない。
+   * メッセージ要素には CSS 側で pointer-events: none を指定しているため、
+   * メッセージが表示されている間もクリックはそのまま裏側の要素へ届く。
+   * つまり、最初から通常操作を妨げていないので、
+   * 「操作を元に戻す」ための特別な処理は不要になっている。
+   *
+   * 【なぜ表示処理(表示→3秒待機→フェードアウト)を共通化しているのか】
+   * NORMAL でも OVER_CALORIE でも、「画面中央に表示して、少し待って、
+   * ゆっくり消す」という見た目の演出そのものは同じでよく、変わるのは
+   * 「どの文言を表示するか」だけ。共通化しておくことで、
+   * 表示アニメーションの調整をしたくなったときも、直す場所が1箇所で済む。
+   *
+   * @param {number} totalCalories - メッセージカテゴリの判定に使う総カロリー
+   * @returns {Promise<void>}
+   */
+  async playSupernovaMessage(totalCalories = 0) {
+    const messageElement = document.getElementById('supernovaMessage')
+    if (!messageElement) return
+
+    const holdDuration = 3000 // メッセージを表示しておく時間(ミリ秒)。約3秒。
+    const fadeOutDuration = 1000 // ゆっくり消えるまでの時間(ミリ秒)。
+
+    // 【今回追加】総カロリーから「今回使うメッセージカテゴリ」を決め、
+    // そのカテゴリの中からランダムに1つメッセージを選ぶ。
+    // カテゴリを決める処理・ランダムに選ぶ処理は、それぞれ別の関数に分けてあるので、
+    // この関数自体は「カテゴリを決めて、選んで、表示する」という流れだけを見ればよい。
+    const category = this.resolveSupernovaMessageCategory(totalCalories)
+    const message = this.pickSupernovaMessage(category)
+
+    // メッセージ内の改行(\n)は、そのまま innerHTML に入れても画面上では
+    // 改行されないため、HTMLの改行タグ(<br>)に置き換えてから挿入する。
+    messageElement.innerHTML = `<p>${message.replace(/\n/g, '<br>')}</p>`
+
+    // まずは transition 無しで、メッセージをすぐ表示する
+    messageElement.style.transition = 'none'
+    messageElement.style.opacity = '1'
+
+    // ブラウザが実際に「表示された状態」を描画するまで、1フレーム分だけ待つ
+    await new Promise((resolve) => requestAnimationFrame(resolve))
+
+    // 約3秒間、そのまま表示し続ける
+    await this.wait(holdDuration)
+
+    // ここから transition を有効にして、ゆっくりフェードアウトさせる
+    messageElement.style.transition = `opacity ${fadeOutDuration}ms ease`
+    messageElement.style.opacity = '0'
+
+    // フェードアウトが終わるまで待ってから、この関数を終える
+    await this.wait(fadeOutDuration)
+  }
+
+  /**
+   * 現在の状況(総カロリー)から、今回使うメッセージカテゴリ名を決めて返す。
+   *
+   * 【なぜカテゴリを切り替えるだけで済む作りにしているのか】
+   * SUPERNOVA_MESSAGE_CATEGORY_RULES(ファイル先頭で定義)を上から順に確認し、
+   * 条件(condition)が true になった最初のルールの category を返すだけ、
+   * というシンプルな処理にしている。
+   * 「条件ごとに違う表示処理を書く」のではなく「条件ごとに使う配列(カテゴリ)を
+   * 切り替えるだけ」にしておくことで、表示処理(playSupernovaMessage)側は
+   * 一切変更せずに済み、将来カテゴリが増えても影響範囲が小さく保てる。
+   *
+   * @param {number} totalCalories - 判定に使う総カロリー
+   * @returns {string} 使用するメッセージカテゴリ名(例: 'NORMAL', 'OVER_CALORIE')
+   */
+  resolveSupernovaMessageCategory(totalCalories) {
+    const matchedRule = SUPERNOVA_MESSAGE_CATEGORY_RULES.find((rule) => rule.condition(totalCalories))
+    return matchedRule ? matchedRule.category : DEFAULT_SUPERNOVA_MESSAGE_CATEGORY
+  }
+
+  /**
+   * SUPERNOVA_MESSAGES の指定したカテゴリの中から、メッセージを1つランダムに選んで返す。
+   *
+   * 【ランダム選択の仕組み】
+   * Math.random() は「0以上1未満」のランダムな小数を返す関数。
+   * それに配列の要素数(messages.length)を掛けて Math.floor()(小数点以下切り捨て)すると、
+   * 0 〜 (要素数-1) の範囲のランダムな添字(インデックス)が作れる。
+   * 例:メッセージが9個あるなら、0〜8のどれかがランダムに選ばれ、
+   * それぞれが選ばれる確率はすべて均等(完全な均等ランダム)になる。
+   *
+   * @param {string} category - SUPERNOVA_MESSAGES のキー(例: 'NORMAL')
+   * @returns {string} 選ばれたメッセージ。該当カテゴリが無い/空の場合は空文字を返す
+   */
+  pickSupernovaMessage(category) {
+    const messages = SUPERNOVA_MESSAGES[category]
+    if (!messages || messages.length === 0) return ''
+
+    const randomIndex = Math.floor(Math.random() * messages.length)
+    return messages[randomIndex]
+  }
+
+  /**
+   * 超新星爆発の最終段階の演出:画面全体を一瞬白くフラッシュさせ、
+   * その「白くなっている間」に既存の宇宙リセット処理を実行し、
+   * その後ゆっくりと白を透明に戻していく。
+   *
+   * 【なぜ画面が白い間にリセットするのか】
+   * 星が消えた直後、そのまま何もない宇宙に切り替わる様子を
+   * そのまま見せてしまうと、切り替わりが唐突に見えてしまう。
+   * 画面が真っ白になっている間にリセットを済ませておけば、
+   * 白いフラッシュの裏で「宇宙の入れ替え」が完了し、
+   * フラッシュが消えたときには自然に新しい宇宙が見える、という流れになる。
+   *
+   * 【なぜフェードアウトするのか】
+   * 白色から通常画面へ一気に切り替えると、ここでも唐突な印象になってしまう。
+   * 「白 → 少しずつ透明 → 通常画面」と自然に戻すことで、
+   * 超新星爆発の一連の演出を違和感のない形で締めくくっている。
+   *
+   * 【なぜ既存の triggerSupernova() をそのまま使うのか】
+   * 「食事履歴削除・星データ初期化・localStorage更新・宇宙再生成」は
+   * すでに triggerSupernova() で実装済みのため、同じ処理を複製せず、
+   * ここから呼び出すだけにしている。
+   *
+   * @returns {Promise<void>}
+   */
+  async playSupernovaFlashAndReset() {
+    const flashElement = document.getElementById('supernovaFlash')
+    const fadeOutDuration = 600 // 白がゆっくり消えるまでの時間(ミリ秒)。約0.6秒。
+
+    // フラッシュ用の要素が見つからない場合でも、
+    // 宇宙リセットだけは必ず実行されるようにしておく(既存機能を止めないため)。
+    if (!flashElement) {
+      this.triggerSupernova()
+      return
+    }
+
+    // 【1】まずは transition(徐々に変化させる指定)を一旦外し、一瞬で真っ白にする。
+    //     ここで transition を付けたままにすると、白くなる瞬間もゆっくりになってしまい、
+    //     「一瞬で真っ白」という指示に合わなくなるため。
+    flashElement.style.transition = 'none'
+    flashElement.style.opacity = '1'
+
+    // ブラウザが実際に「白色」を画面へ描画するまで、1フレーム分だけ待つ。
+    // (待たずに次の処理へ進むと、白い画面が一瞬も表示されないまま
+    //  リセットが終わってしまう可能性があるため)
+    await new Promise((resolve) => requestAnimationFrame(resolve))
+
+    // 【2】画面が白い間に、既存の宇宙リセット処理を実行する。
+    //     食事履歴削除・星データ初期化・localStorage更新・宇宙再生成は、
+    //     すべて triggerSupernova() の中でこれまで通り行われる(処理内容は無変更)。
+    this.triggerSupernova()
+
+    // 【3】ここから transition を有効にして、白色をゆっくり透明へ戻していく。
+    flashElement.style.transition = `opacity ${fadeOutDuration}ms ease`
+    flashElement.style.opacity = '0'
+
+    // フェードアウトが終わるまで待ってから、この関数を終える。
+    await this.wait(fadeOutDuration)
+  }
+
+  /**
+   * 超新星爆発の第四段階の演出:白色になって静止していた星を、
+   * 超新星爆発として宇宙(Scene)から消滅させる。
+   *
+   * 【なぜ Scene から削除するのか】
+   * 星が「爆発して無くなった」ことを見た目でも正しく表現するため。
+   * mesh をそのまま残して色やサイズだけ変えても、シーン上には星が
+   * 表示され続けてしまい、「消滅した」ようには見えない。
+   * また、ここで確実に取り除いておくことで、次回(第7.6回)実装予定の
+   * 宇宙リセット処理と二重に削除しようとして食い違う、といった問題も防げる。
+   *
+   * 【なぜ既存の removeStarFromScene() をそのまま再利用しているか】
+   * 「星をシーンから消す」処理自体は、通常の削除メニューや宇宙リセットで
+   * すでに使っている removeStarFromScene()(mesh・軌道線をシーンから外し、
+   * starManager からも取り除く処理)とまったく同じ内容でよいため、
+   * 同じ処理を2箇所に書かず、既存の関数をそのまま呼び出している。
+   *
+   * 【今後パーティクルなどを追加しやすくしている理由】
+   * この関数を「爆発の入り口」として独立させておくことで、
+   * 次回以降「爆発の瞬間にパーティクルを表示する」といった演出を
+   * 追加したくなったとき、この関数の中(削除する直前・直後)に
+   * 処理を足すだけで対応できるようにしている。
+   *
+   * @param {{ star: Star, mesh: THREE.Object3D|null } | null} target - getMaxCalorieStar() の戻り値
+   */
+  playSupernovaExplosion(target) {
+    if (!target || !target.star) return
+
+    // ここに、今後(第7.6回以降)パーティクルなどの爆発エフェクトを
+    // 追加していく想定(削除の直前 or 直後に処理を足すだけでよい構成)。
+
+    // 対象の星だけをシーンから取り除く(他の星には一切触れない)。
+    this.removeStarFromScene(target.star)
+
+    // 削除した星が「現在選択中の星」だった場合、詳細パネルが
+    // すでに存在しない星の情報を表示し続けてしまわないよう、初期表示に戻しておく。
+    if (this.selectedStar === target.star) {
+      this.selectedStar = null
+      this.setInfoPanelDefault()
+    }
+  }
+
+  /**
+   * 超新星爆発の第三段階の演出:星の色を少しずつ白色へ変化させ、
+   * 完全な白色になったら、その状態のまま約0.4秒間静止させる。
+   *
+   * 【なぜ白色にするのか】
+   * 星がこれ以上ないほどエネルギーを溜め込み、
+   * 「あらゆる色を飲み込んで真っ白に輝く=限界状態」であることを
+   * 表現するため(恒星は温度が上がるほど白っぽく見える、というイメージ)。
+   *
+   * 【なぜ一瞬(0.4秒)停止するのか】
+   * 白くなった直後にすぐ次の処理(爆発)へ進んでしまうと、
+   * 「限界状態になった」ことにユーザーが気づく間もなく終わってしまう。
+   * あえて何も起きない時間を作ることで、「これから何かが起きる」という
+   * 緊張感・タメを演出している。
+   *
+   * 【なぜこの処理を独立した関数(別ステップ)にしているのか】
+   * 次回(第7.5回)実装予定の「爆発」処理は、この
+   * 「星が白色になって静止している状態」をスタート地点として始まる予定。
+   * この関数を独立させておくことで、次回は
+   * 「playSupernovaWhiteout() の後に、爆発処理を追加する」だけで済むようにしている。
+   *
+   * @param {{ mesh: THREE.Object3D|null } | null} target - getMaxCalorieStar() の戻り値
+   * @returns {Promise<void>} 白色になって静止し終わったときに解決される
+   */
+  playSupernovaWhiteout(target) {
+    if (!target || !target.mesh || !target.mesh.material) return Promise.resolve()
+
+    const mesh = target.mesh
+    const fadeDuration = 400 // 白色へ変化させる時間(ミリ秒)。急に切り替えず、少しかけて自然に見せる。
+    const holdDuration = 400 // 完全な白色になったあと、静止させる時間(ミリ秒)。約0.4秒。
+
+    // フェード開始時点の色(色変化パターンの最後の色=赤)を基準に、そこから白へ向かって変化させる
+    const startColor = mesh.material.color.clone()
+    const endColor = new THREE.Color(SUPERNOVA_COLORS.WHITE)
+
+    return new Promise((resolve) => {
+      const startTime = performance.now()
+
+      // 白へ変化させるアニメーション部分(1フレームごとに呼ばれる)
+      const fadeFrame = (now) => {
+        const elapsed = now - startTime
+        const progress = Math.min(elapsed / fadeDuration, 1)
+
+        // THREE.Color の lerp() は「2つの色の間を progress の割合で混ぜた色」を作ってくれる。
+        // startColor をコピーしてから lerp することで、元の色を直接書き換えないようにしている。
+        mesh.material.color.copy(startColor).lerp(endColor, progress)
+
+        // サイズ(scale)や位置(position)にはここでは触れていないので、
+        // 膨張後の最大サイズ・現在位置のまま維持される。
+
+        if (progress < 1) {
+          requestAnimationFrame(fadeFrame)
+          return
+        }
+
+        // 誤差が残らないよう、最後は必ず完全な白色にしておく
+        mesh.material.color.set(SUPERNOVA_COLORS.WHITE)
+
+        // 白色になった状態のまま、約0.4秒間そのまま静止させる。
+        // 既存の wait() ヘルパーを再利用し、待ち終わったら resolve() してこの関数を終える。
+        this.wait(holdDuration).then(resolve)
+      }
+
+      requestAnimationFrame(fadeFrame)
+    })
+  }
+
+  /**
+   * SUPERNOVA_COLOR_PATTERNS の中から、ランダムに1つのパターンを選んで返す。
+   * 完全にランダムな色を都度組み立てるのではなく、
+   * あらかじめ用意したパターンの中から選ぶだけなので、毎回それらしい配色になる。
+   *
+   * @returns {number[]} 選ばれた色パターン(16進カラーコードの配列)
+   */
+  pickSupernovaColorPattern() {
+    const randomIndex = Math.floor(Math.random() * SUPERNOVA_COLOR_PATTERNS.length)
+    return SUPERNOVA_COLOR_PATTERNS[randomIndex]
   }
 
   /**
