@@ -167,7 +167,7 @@ export class Star {
    * こうすることで、constants.js を変更するだけで
    * ルールを簡単に調整できます！
    * 
-   * @returns {string} 進化段階（小惑星、微惑星、準惑星、地球型惑星、巨大惑星、褐色矮星、赤色矮星、恒星、巨星、超巨星）
+   * @returns {string} 進化段階（微惑星、小惑星、原始惑星、地球型惑星、巨大惑星、褐色矮星、赤色矮星、黄色矮星、赤色巨星、超巨星）
    */
   getEvolutionStage() {
     const calories = this.data.calories
@@ -194,7 +194,7 @@ export class Star {
    * すべての星のサイズが自動的に変わります。
    * 
    * ただし最終段階「超巨星」だけは例外で、上限なく育ち続けます。
-   * 一つ前の段階（巨星）の閾値を超えた分について、
+   * 一つ前の段階（赤色巨星）の閾値を超えた分について、
    * constants.js の FINAL_STAGE_GROWTH（1000kcalごとに+5）を
    * 使って追加サイズを計算し、基準サイズに足します。
    * 
@@ -224,11 +224,11 @@ export class Star {
    * 最終進化段階（超巨星）のサイズを計算する
    * 
    * 【初心者向け解説】
-   * 「一つ前の段階（巨星）の閾値を何kcal超えているか」を求め、
+   * 「一つ前の段階（赤色巨星）の閾値を何kcal超えているか」を求め、
    * FINAL_STAGE_GROWTH.calorieStep（1000kcal）で割った数（＝何段階分成長したか）に
    * FINAL_STAGE_GROWTH.sizeStep（5）を掛けて、基準サイズに足します。
    * 
-   * 例: 巨星の閾値が8000、基準サイズが17の場合
+   * 例: 赤色巨星の閾値が8000、基準サイズが17の場合
    * 　calories = 8001 → 8000kcalちょうどなので +0 → サイズ17
    * 　calories = 9000 → 1000kcal超過 → +5 → サイズ22
    * 　calories = 10000 → 2000kcal超過 → +10 → サイズ27
@@ -240,7 +240,7 @@ export class Star {
    */
   calculateFinalStageSize(calories, stages, finalIndex) {
     const finalStage = stages[finalIndex]
-    // 超巨星になる直前の段階（＝一つ前の要素）の閾値を「成長の起点」にする
+    // 超巨星になる直前の段階（＝赤色巨星、一つ前の要素）の閾値を「成長の起点」にする
     const previousThreshold = finalIndex > 0 ? stages[finalIndex - 1].threshold : 0
     const growth = Constants.FINAL_STAGE_GROWTH
 
