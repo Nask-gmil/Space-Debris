@@ -229,6 +229,30 @@ class SpaceDebrisApp {
   setupEventListeners() {
     window.addEventListener('resize', () => this.onWindowResize())
 
+    const encyclopediaOverlay = document.getElementById('encyclopediaOverlay')
+    const encyclopediaOpenButton = document.getElementById('encyclopediaOpenButton')
+    const encyclopediaCloseButton = document.getElementById('encyclopediaCloseButton')
+    const setEncyclopediaOpen = (isOpen) => {
+      if (!encyclopediaOverlay) return
+      encyclopediaOverlay.classList.toggle('is-open', isOpen)
+      encyclopediaOverlay.setAttribute('aria-hidden', String(!isOpen))
+      encyclopediaOverlay.inert = !isOpen
+      if (encyclopediaOpenButton) encyclopediaOpenButton.setAttribute('aria-expanded', String(isOpen))
+      if (isOpen) {
+        encyclopediaCloseButton?.focus()
+      } else {
+        encyclopediaOpenButton?.focus()
+      }
+    }
+
+    encyclopediaOpenButton?.addEventListener('click', () => setEncyclopediaOpen(true))
+    encyclopediaCloseButton?.addEventListener('click', () => setEncyclopediaOpen(false))
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && encyclopediaOverlay?.classList.contains('is-open')) {
+        setEncyclopediaOpen(false)
+      }
+    })
+
     const el = this.rendererManager.getRenderer().domElement
     el.addEventListener('pointerdown', (event) => this.onPointerDown(event))
     el.addEventListener('pointerup', (event) => this.onPointerUp(event))
