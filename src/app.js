@@ -425,7 +425,17 @@ class SpaceDebrisApp {
     Object.entries(details.facts).forEach(([label, value]) => {
       const fact = createElement('div', 'encyclopedia-fact')
       fact.append(createElement('dt', 'encyclopedia-fact-label', label))
-      fact.append(createElement('dd', 'encyclopedia-fact-value', value || '—'))
+      const isSatelliteCount = label === '確定衛星数' || label === '報告された総衛星数'
+      const displayValue = value == null || value === ''
+        ? '—'
+        : isSatelliteCount && typeof value === 'number'
+          ? `${value}個`
+          : value
+      const valueElement = createElement('dd', 'encyclopedia-fact-value', displayValue)
+      if (label === '報告された総衛星数' && details.satelliteNote) {
+        valueElement.append(createElement('small', 'encyclopedia-satellite-note', details.satelliteNote))
+      }
+      fact.append(valueElement)
       factsGrid.append(fact)
     })
     factsCard.append(factsGrid)
