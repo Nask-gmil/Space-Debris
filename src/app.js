@@ -7,6 +7,7 @@ import { Universe } from './universe/Universe.js'
 import { Star } from './universe/Star.js'
 import { CentralSphere } from './universe/CentralSphere.js'
 import { Constants } from './utils/constants.js'
+import { CELESTIAL_BODIES } from './data/celestialBodies.js'
 
 const DEFAULT_INFO_TEXT = '星を選択してください'
 const ORBIT_MARGIN = 6 // 星と星の間に確保する余白。後で調整しやすいように定数化。
@@ -253,6 +254,8 @@ class SpaceDebrisApp {
       }
     })
 
+    this.setupEncyclopediaList()
+
     const el = this.rendererManager.getRenderer().domElement
     el.addEventListener('pointerdown', (event) => this.onPointerDown(event))
     el.addEventListener('pointerup', (event) => this.onPointerUp(event))
@@ -307,6 +310,76 @@ class SpaceDebrisApp {
 
     // 初期状態で新ジャンル選択時の入力欄を表示する
     this.onGenreSelectionChanged()
+  }
+
+  setupEncyclopediaList() {
+    this.celestialBodyList = document.getElementById('celestialBodyList')
+    this.celestialBodySearch = document.getElementById('celestialBodySearch')
+    this.celestialBodyCategory = document.getElementById('celestialBodyCategory')
+    this.celestialBodyCount = document.getElementById('celestialBodyCount')
+    this.selectedCelestialBodyId = 'earth'
+
+    this.celestialBodySearch?.addEventListener('input', () => this.renderEncyclopediaList())
+    this.celestialBodyCategory?.addEventListener('change', () => this.renderEncyclopediaList())
+    this.renderEncyclopediaList()
+  }
+
+  renderEncyclopediaList() {
+    if (!this.celestialBodyList) return
+
+    const query = this.celestialBodySearch?.value.trim().toLocaleLowerCase() || ''
+    const category = this.celestialBodyCategory?.value || 'all'
+    const filteredBodies = CELESTIAL_BODIES.filter((body) => {
+      const matchesCategory = category === 'all' || body.category === category
+      const matchesQuery = !query ||
+        body.name.toLocaleLowerCase().includes(query) ||
+        body.englishName.toLocaleLowerCase().includes(query)
+      return matchesCategory && matchesQuery
+    })
+
+    this.celestialBodyList.replaceChildren()
+    if (this.celestialBodyCount) {
+      this.celestialBodyCount.textContent = `${filteredBodies.length} / ${CELESTIAL_BODIES.length} 天体`
+    }
+
+    if (filteredBodies.length === 0) {
+      const emptyMessage = document.createElement('p')
+      emptyMessage.className = 'encyclopedia-empty-message'
+      emptyMessage.textContent = '該当する天体がありません'
+      this.celestialBodyList.append(emptyMessage)
+      return
+    }
+
+    filteredBodies.forEach((body) => {
+      const item = document.createElement('button')
+      item.type = 'button'
+      item.className = 'encyclopedia-body-item'
+      item.classList.toggle('is-selected', body.id === this.selectedCelestialBodyId)
+      item.setAttribute('role', 'option')
+      item.setAttribute('aria-selected', String(body.id === this.selectedCelestialBodyId))
+
+      const icon = document.createElement('span')
+      icon.className = 'encyclopedia-body-icon'
+      icon.setAttribute('aria-hidden', 'true')
+      icon.textContent = body.icon
+
+      const names = document.createElement('span')
+      names.className = 'encyclopedia-body-names'
+      const japaneseName = document.createElement('span')
+      japaneseName.className = 'encyclopedia-body-name'
+      japaneseName.textContent = body.name
+      const englishName = document.createElement('span')
+      englishName.className = 'encyclopedia-body-english-name'
+      englishName.textContent = body.englishName
+      names.append(japaneseName, englishName)
+      item.append(icon, names)
+
+      item.addEventListener('click', () => {
+        this.selectedCelestialBodyId = body.id
+        this.renderEncyclopediaList()
+      })
+      this.celestialBodyList.append(item)
+    })
   }
 
   onRegisterButtonClick() {

@@ -9,7 +9,7 @@
 <body>
     <div class="app">
         <button type="button" class="encyclopedia-open-button" id="encyclopediaOpenButton" aria-haspopup="dialog" aria-controls="encyclopediaOverlay">
-            ✦ 図鑑
+            📖 図鑑
         </button>
         <aside class="input-panel" id="inputPanel" aria-label="食べ物登録フォーム">
             <button type="button" class="panel-handle" id="inputPanelHandle" aria-expanded="false" aria-controls="inputPanelBody">
@@ -72,9 +72,30 @@
                     </nav>
                     <button type="button" class="encyclopedia-close-button" id="encyclopediaCloseButton" aria-label="図鑑を閉じる">×</button>
                 </header>
-                <div class="encyclopedia-placeholder" aria-hidden="true">
-                    <span class="encyclopedia-placeholder-icon">✧</span>
-                    <p>図鑑の準備中</p>
+                <div class="encyclopedia-content">
+                    <aside class="encyclopedia-sidebar" aria-label="天体一覧">
+                        <section class="encyclopedia-card encyclopedia-list-card">
+                            <div class="encyclopedia-card-heading">
+                                <h2>天体一覧</h2>
+                                <span class="encyclopedia-count" id="celestialBodyCount" aria-live="polite"></span>
+                            </div>
+                            <label class="encyclopedia-search-label" for="celestialBodySearch">天体名で検索</label>
+                            <input class="encyclopedia-search" id="celestialBodySearch" type="search" placeholder="日本語名・英語名で検索" autocomplete="off">
+                            <label class="encyclopedia-category-label" for="celestialBodyCategory">カテゴリ</label>
+                            <select class="encyclopedia-category" id="celestialBodyCategory">
+                                <option value="all">すべての天体</option>
+                                <option value="planet">惑星</option>
+                                <option value="satellite">衛星</option>
+                                <option value="star">恒星</option>
+                                <option value="dwarf-planet">準惑星</option>
+                            </select>
+                            <div class="encyclopedia-body-list" id="celestialBodyList" role="listbox" aria-label="天体一覧"></div>
+                        </section>
+                    </aside>
+                    <section class="encyclopedia-card encyclopedia-detail-placeholder" aria-live="polite">
+                        <span class="encyclopedia-placeholder-icon" aria-hidden="true">✧</span>
+                        <p>天体の詳細情報は次の段階で追加します</p>
+                    </section>
                 </div>
             </div>
         </section>
