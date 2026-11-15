@@ -8,6 +8,7 @@ import { Star } from './universe/Star.js'
 import { CentralSphere } from './universe/CentralSphere.js'
 import { Constants } from './utils/constants.js'
 import { CELESTIAL_BODIES } from './data/celestialBodies.js'
+import { CELESTIAL_BODY_DETAILS } from './data/celestialBodyDetails.js'
 
 const DEFAULT_INFO_TEXT = '星を選択してください'
 const ORBIT_MARGIN = 6 // 星と星の間に確保する余白。後で調整しやすいように定数化。
@@ -317,11 +318,13 @@ class SpaceDebrisApp {
     this.celestialBodySearch = document.getElementById('celestialBodySearch')
     this.celestialBodyCategory = document.getElementById('celestialBodyCategory')
     this.celestialBodyCount = document.getElementById('celestialBodyCount')
+    this.celestialBodyDetails = document.getElementById('celestialBodyDetails')
     this.selectedCelestialBodyId = 'earth'
 
     this.celestialBodySearch?.addEventListener('input', () => this.renderEncyclopediaList())
     this.celestialBodyCategory?.addEventListener('change', () => this.renderEncyclopediaList())
     this.renderEncyclopediaList()
+    this.renderEncyclopediaDetails()
   }
 
   renderEncyclopediaList() {
@@ -377,9 +380,80 @@ class SpaceDebrisApp {
       item.addEventListener('click', () => {
         this.selectedCelestialBodyId = body.id
         this.renderEncyclopediaList()
+        this.renderEncyclopediaDetails()
       })
       this.celestialBodyList.append(item)
     })
+  }
+
+  renderEncyclopediaDetails() {
+    if (!this.celestialBodyDetails) return
+
+    const body = CELESTIAL_BODIES.find((item) => item.id === this.selectedCelestialBodyId)
+    const details = CELESTIAL_BODY_DETAILS[this.selectedCelestialBodyId]
+    if (!body || !details) return
+
+    const createElement = (tagName, className, text) => {
+      const element = document.createElement(tagName)
+      if (className) element.className = className
+      if (text !== undefined) element.textContent = text
+      return element
+    }
+
+    const detailScroll = createElement('div', 'encyclopedia-detail-scroll')
+    const top = createElement('div', 'encyclopedia-detail-top')
+    const hero = createElement('section', 'encyclopedia-detail-hero encyclopedia-card')
+    hero.append(createElement('span', 'encyclopedia-classification', details.classification))
+
+    const visualFrame = createElement('div', 'encyclopedia-visual-frame')
+    const model = createElement('div', 'encyclopedia-model')
+    model.dataset.body = body.id
+    model.setAttribute('role', 'img')
+    model.setAttribute('aria-label', `${body.name}のイメージ`)
+    visualFrame.append(model)
+    hero.append(visualFrame)
+
+    hero.append(
+      createElement('h2', 'encyclopedia-detail-name', body.name),
+      createElement('p', 'encyclopedia-detail-english-name', body.englishName),
+      createElement('p', 'encyclopedia-description', details.description),
+    )
+
+    const factsCard = createElement('section', 'encyclopedia-facts-card encyclopedia-card')
+    factsCard.append(createElement('h3', 'encyclopedia-section-title', '基本情報'))
+    const factsGrid = createElement('dl', 'encyclopedia-facts-grid')
+    Object.entries(details.facts).forEach(([label, value]) => {
+      const fact = createElement('div', 'encyclopedia-fact')
+      fact.append(createElement('dt', 'encyclopedia-fact-label', label))
+      fact.append(createElement('dd', 'encyclopedia-fact-value', value || '—'))
+      factsGrid.append(fact)
+    })
+    factsCard.append(factsGrid)
+    top.append(hero, factsCard)
+
+    const bottom = createElement('div', 'encyclopedia-detail-bottom')
+    const linksCard = createElement('section', 'encyclopedia-links-card encyclopedia-card')
+    linksCard.append(createElement('h3', 'encyclopedia-section-title', '参考リンク'))
+    const linkGrid = createElement('div', 'encyclopedia-link-grid')
+    details.references.forEach(({ label, url }) => {
+      const link = createElement('a', 'encyclopedia-reference-link', label)
+      link.href = url
+      link.target = '_blank'
+      link.rel = 'noopener noreferrer'
+      linkGrid.append(link)
+    })
+    linksCard.append(linkGrid)
+
+    const triviaCard = createElement('section', 'encyclopedia-trivia-card')
+    triviaCard.append(
+      createElement('h3', 'encyclopedia-trivia-title', '✦ ちょい足し豆知識'),
+      createElement('p', 'encyclopedia-trivia-text', details.trivia),
+    )
+    bottom.append(linksCard, triviaCard)
+
+    detailScroll.append(top, bottom)
+    detailScroll.append(createElement('p', 'encyclopedia-data-note', '距離は目安です。惑星と衛星の数は、新しい発見により変わることがあります。'))
+    this.celestialBodyDetails.replaceChildren(detailScroll)
   }
 
   onRegisterButtonClick() {

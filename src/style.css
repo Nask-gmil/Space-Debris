@@ -382,19 +382,248 @@ canvas {
     text-align: center;
 }
 
-.encyclopedia-detail-placeholder {
-    display: grid;
-    place-content: center;
+.encyclopedia-detail-panel {
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.encyclopedia-detail-scroll {
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    flex-direction: column;
     gap: 10px;
-    padding: 20px;
-    color: #91a8bd;
-    font-size: 13px;
+    overflow-y: auto;
+    padding: 10px;
+    overscroll-behavior: contain;
+    scrollbar-color: #315c73 #0a1626;
+    scrollbar-width: thin;
+}
+
+.encyclopedia-detail-top {
+    display: grid;
+    flex: 0 0 auto;
+    grid-template-columns: minmax(190px, 0.75fr) minmax(0, 1.5fr);
+    gap: 10px;
+}
+
+.encyclopedia-detail-hero {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: center;
+    padding: 14px;
     text-align: center;
 }
 
-.encyclopedia-placeholder-icon {
-    color: #55d9e8;
-    font-size: 34px;
+.encyclopedia-classification {
+    display: inline-flex;
+    align-items: center;
+    min-height: 26px;
+    padding: 4px 10px;
+    border: 1px solid #4c8a9c;
+    border-radius: 20px;
+    background: #102d3f;
+    color: #8de4ec;
+    font-size: 11px;
+}
+
+.encyclopedia-visual-frame {
+    display: grid;
+    width: 100%;
+    min-height: 124px;
+    margin: 10px 0;
+    place-items: center;
+    overflow: hidden;
+    border-radius: 10px;
+    background: radial-gradient(ellipse at 50% 35%, #173d5a 0%, #0c2035 48%, #091525 100%);
+}
+
+.encyclopedia-model {
+    position: relative;
+    width: 88px;
+    height: 88px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 26%, #a4edee 0%, #4b9ece 31%, #1d4e82 62%, #091b36 84%);
+    box-shadow: inset -17px -13px 24px #020a1a, 0 0 30px #2f9ec566;
+}
+
+.encyclopedia-model[data-body="mercury"] {
+    background: radial-gradient(circle at 32% 27%, #d9d0bd 0%, #968d7d 38%, #4c4c50 73%, #181e2c 100%);
+}
+
+.encyclopedia-model[data-body="venus"] {
+    background: radial-gradient(circle at 30% 28%, #fff1b0 0%, #d4a85f 43%, #90623c 76%, #30223a 100%);
+}
+
+.encyclopedia-model[data-body="mars"] {
+    background: radial-gradient(circle at 30% 27%, #ffc28a 0%, #d7653b 39%, #873b2b 72%, #311b27 100%);
+}
+
+.encyclopedia-model[data-body="jupiter"] {
+    background: repeating-linear-gradient(174deg, #b77c58 0 9px, #ead1a2 10px 18px, #9c5e44 19px 26px, #d9b98c 27px 35px);
+    box-shadow: inset -17px -12px 25px #191522, 0 0 28px #c78c5a44;
+}
+
+.encyclopedia-model[data-body="saturn"] {
+    background: radial-gradient(circle at 30% 28%, #f5dfaa 0%, #cfb26e 46%, #96754a 75%, #30243a 100%);
+}
+
+.encyclopedia-model[data-body="saturn"]::after {
+    position: absolute;
+    inset: 30px -22px;
+    border: 5px solid #d7c38d;
+    border-right-color: transparent;
+    border-left-color: transparent;
+    border-radius: 50%;
+    content: "";
+    opacity: 0.82;
+    transform: rotate(-18deg);
+}
+
+.encyclopedia-model[data-body="uranus"] {
+    background: radial-gradient(circle at 30% 28%, #c8ffff 0%, #78cfda 38%, #438da8 74%, #15233f 100%);
+}
+
+.encyclopedia-model[data-body="neptune"] {
+    background: radial-gradient(circle at 30% 28%, #9cd5ff 0%, #397fe0 42%, #183887 75%, #0c183e 100%);
+}
+
+.encyclopedia-model[data-body="moon"] {
+    background: radial-gradient(circle at 32% 27%, #f4f1e8 0%, #b8b8b5 48%, #777d85 78%, #242d3b 100%);
+}
+
+.encyclopedia-model[data-body="sun"] {
+    background: radial-gradient(circle at 34% 29%, #fff7bf 0%, #ffd34e 42%, #f18a22 75%, #bb3a13 100%);
+    box-shadow: inset -12px -10px 22px #9c260b, 0 0 34px #ffb32a99;
+}
+
+.encyclopedia-model[data-body="pluto"] {
+    background: radial-gradient(circle at 32% 27%, #e7d9c5 0%, #c2a98c 42%, #76685f 78%, #282338 100%);
+}
+
+.encyclopedia-detail-name {
+    color: #f2f8ff;
+    font-size: 23px;
+    line-height: 1.25;
+}
+
+.encyclopedia-detail-english-name {
+    margin-top: 3px;
+    color: #91b2c8;
+    font-size: 12px;
+}
+
+.encyclopedia-description {
+    max-width: 440px;
+    margin-top: 9px;
+    color: #b9cede;
+    font-size: 12px;
+    line-height: 1.65;
+}
+
+.encyclopedia-facts-card,
+.encyclopedia-links-card {
+    min-width: 0;
+    padding: 12px;
+}
+
+.encyclopedia-section-title {
+    margin: 0 0 10px;
+    color: #a8c5d8;
+    font-size: 13px;
+}
+
+.encyclopedia-facts-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+}
+
+.encyclopedia-fact {
+    min-width: 0;
+    min-height: 61px;
+    padding: 8px;
+    border: 1px solid #1b3a51;
+    border-radius: 9px;
+    background: #0b1a2b;
+}
+
+.encyclopedia-fact-label {
+    margin-bottom: 5px;
+    color: #8ca8bd;
+    font-size: 10px;
+}
+
+.encyclopedia-fact-value {
+    color: #e5f5ff;
+    font-size: 11px;
+    font-weight: 650;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+
+.encyclopedia-detail-bottom {
+    display: grid;
+    flex: 0 0 auto;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+    gap: 10px;
+}
+
+.encyclopedia-link-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+}
+
+.encyclopedia-reference-link {
+    display: grid;
+    min-height: 36px;
+    place-items: center;
+    padding: 7px;
+    border: 1px solid #2a566e;
+    border-radius: 8px;
+    background: #0d2032;
+    color: #bcecf3;
+    font-size: 11px;
+    text-align: center;
+    text-decoration: none;
+}
+
+.encyclopedia-reference-link:hover,
+.encyclopedia-reference-link:focus-visible {
+    border-color: #55d9e8;
+    background: #123247;
+    outline: none;
+}
+
+.encyclopedia-trivia-card {
+    position: relative;
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid #28536a;
+    border-radius: 10px;
+    background: linear-gradient(115deg, #10253a, #0b1b2d);
+}
+
+.encyclopedia-trivia-title {
+    margin-bottom: 8px;
+    color: #8de7ed;
+    font-size: 13px;
+}
+
+.encyclopedia-trivia-text {
+    color: #c4d7e7;
+    font-size: 11px;
+    line-height: 1.6;
+}
+
+.encyclopedia-data-note {
+    flex: 0 0 auto;
+    color: #68869d;
+    font-size: 9px;
 }
 
 .input-panel h1 {
@@ -893,13 +1122,81 @@ canvas {
 
     .encyclopedia-content {
         grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: minmax(0, 1fr) minmax(82px, 0.3fr);
+        grid-template-rows: minmax(130px, 0.48fr) minmax(0, 1fr);
         gap: 8px;
         padding: 8px;
     }
 
     .encyclopedia-body-item {
         padding: 6px;
+    }
+
+    .encyclopedia-detail-scroll {
+        gap: 8px;
+        padding: 8px;
+    }
+
+    .encyclopedia-detail-top,
+    .encyclopedia-detail-bottom {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 8px;
+    }
+
+    .encyclopedia-detail-hero {
+        display: grid;
+        grid-template-columns: 78px minmax(0, 1fr);
+        grid-template-areas:
+            "classification classification"
+            "visual name"
+            "visual english"
+            "visual description";
+        gap: 3px 12px;
+        padding: 10px;
+        text-align: left;
+    }
+
+    .encyclopedia-classification {
+        grid-area: classification;
+        justify-self: start;
+    }
+
+    .encyclopedia-visual-frame {
+        grid-area: visual;
+        width: 78px;
+        min-height: 78px;
+        margin: 6px 0;
+    }
+
+    .encyclopedia-model {
+        width: 62px;
+        height: 62px;
+    }
+
+    .encyclopedia-model[data-body="saturn"]::after {
+        inset: 21px -16px;
+        border-width: 4px;
+    }
+
+    .encyclopedia-detail-name {
+        grid-area: name;
+        align-self: end;
+        font-size: 20px;
+    }
+
+    .encyclopedia-detail-english-name {
+        grid-area: english;
+        align-self: start;
+        margin: 0;
+    }
+
+    .encyclopedia-description {
+        grid-area: description;
+        align-self: start;
+        margin: 3px 0 0;
+    }
+
+    .encyclopedia-facts-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
