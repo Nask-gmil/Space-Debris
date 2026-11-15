@@ -255,12 +255,12 @@ canvas {
 
 .encyclopedia-card-heading h2 {
     color: #b9d7e9;
-    font-size: 14px;
+    font-size: 16px;
 }
 
 .encyclopedia-count {
     color: #7895aa;
-    font-size: 11px;
+    font-size: 13px;
     white-space: nowrap;
 }
 
@@ -269,7 +269,7 @@ canvas {
     flex: 0 0 auto;
     margin: 8px 9px 4px;
     color: #8ca8bd;
-    font-size: 11px;
+    font-size: 13px;
 }
 
 .encyclopedia-search,
@@ -282,7 +282,7 @@ canvas {
     background: #07111f;
     color: #e7f3ff;
     font: inherit;
-    font-size: 12px;
+    font-size: 14px;
 }
 
 .encyclopedia-search {
@@ -361,7 +361,7 @@ canvas {
 .encyclopedia-body-name {
     overflow: hidden;
     color: inherit;
-    font-size: 12px;
+    font-size: 14px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -370,7 +370,7 @@ canvas {
     overflow: hidden;
     margin-top: 2px;
     color: #7f9bb0;
-    font-size: 10px;
+    font-size: 12px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -393,9 +393,9 @@ canvas {
     height: 100%;
     min-height: 0;
     flex-direction: column;
-    gap: 10px;
+    gap: 14px;
     overflow-y: auto;
-    padding: 10px;
+    padding: 14px;
     overscroll-behavior: contain;
     scrollbar-color: #315c73 #0a1626;
     scrollbar-width: thin;
@@ -404,8 +404,8 @@ canvas {
 .encyclopedia-detail-top {
     display: grid;
     flex: 0 0 auto;
-    grid-template-columns: minmax(190px, 0.75fr) minmax(0, 1.5fr);
-    gap: 10px;
+    grid-template-columns: minmax(220px, 0.9fr) minmax(0, 1.45fr);
+    gap: 14px;
 }
 
 .encyclopedia-detail-hero {
@@ -420,20 +420,20 @@ canvas {
 .encyclopedia-classification {
     display: inline-flex;
     align-items: center;
-    min-height: 26px;
-    padding: 4px 10px;
+    min-height: 30px;
+    padding: 5px 12px;
     border: 1px solid #4c8a9c;
     border-radius: 20px;
     background: #102d3f;
     color: #8de4ec;
-    font-size: 11px;
+    font-size: 13px;
 }
 
 .encyclopedia-visual-frame {
     display: grid;
     width: 100%;
-    min-height: 124px;
-    margin: 10px 0;
+    min-height: 150px;
+    margin: 12px 0;
     place-items: center;
     overflow: hidden;
     border-radius: 10px;
@@ -442,8 +442,8 @@ canvas {
 
 .encyclopedia-model {
     position: relative;
-    width: 88px;
-    height: 88px;
+    width: 106px;
+    height: 106px;
     flex: 0 0 auto;
     border-radius: 50%;
     background: radial-gradient(circle at 30% 26%, #a4edee 0%, #4b9ece 31%, #1d4e82 62%, #091b36 84%);
@@ -506,62 +506,62 @@ canvas {
 
 .encyclopedia-detail-name {
     color: #f2f8ff;
-    font-size: 23px;
+    font-size: 28px;
     line-height: 1.25;
 }
 
 .encyclopedia-detail-english-name {
     margin-top: 3px;
     color: #91b2c8;
-    font-size: 12px;
+    font-size: 15px;
 }
 
 .encyclopedia-description {
     max-width: 440px;
-    margin-top: 9px;
+    margin-top: 12px;
     color: #b9cede;
-    font-size: 12px;
-    line-height: 1.65;
+    font-size: 15px;
+    line-height: 1.7;
 }
 
 .encyclopedia-facts-card,
 .encyclopedia-links-card {
     min-width: 0;
-    padding: 12px;
+    padding: 16px;
 }
 
 .encyclopedia-section-title {
-    margin: 0 0 10px;
+    margin: 0 0 13px;
     color: #a8c5d8;
-    font-size: 13px;
+    font-size: 16px;
 }
 
 .encyclopedia-facts-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 7px;
+    gap: 10px;
 }
 
 .encyclopedia-fact {
     min-width: 0;
-    min-height: 61px;
-    padding: 8px;
+    min-height: 76px;
+    padding: 10px;
     border: 1px solid #1b3a51;
     border-radius: 9px;
     background: #0b1a2b;
 }
 
 .encyclopedia-fact-label {
-    margin-bottom: 5px;
+    margin-bottom: 7px;
     color: #8ca8bd;
-    font-size: 10px;
+    font-size: 13px;
 }
 
 .encyclopedia-fact-value {
     color: #e5f5ff;
-    font-size: 11px;
-    font-weight: 650;
-    line-height: 1.45;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.5;
     overflow-wrap: anywhere;
 }
 
@@ -580,14 +580,14 @@ canvas {
 
 .encyclopedia-reference-link {
     display: grid;
-    min-height: 36px;
+    min-height: 44px;
     place-items: center;
     padding: 7px;
     border: 1px solid #2a566e;
     border-radius: 8px;
     background: #0d2032;
     color: #bcecf3;
-    font-size: 11px;
+    font-size: 14px;
     text-align: center;
     text-decoration: none;
 }
@@ -602,28 +602,28 @@ canvas {
 .encyclopedia-trivia-card {
     position: relative;
     min-width: 0;
-    padding: 12px;
+    padding: 16px;
     border: 1px solid #28536a;
     border-radius: 10px;
     background: linear-gradient(115deg, #10253a, #0b1b2d);
 }
 
 .encyclopedia-trivia-title {
-    margin-bottom: 8px;
+    margin-bottom: 10px;
     color: #8de7ed;
-    font-size: 13px;
+    font-size: 16px;
 }
 
 .encyclopedia-trivia-text {
     color: #c4d7e7;
-    font-size: 11px;
-    line-height: 1.6;
+    font-size: 14px;
+    line-height: 1.7;
 }
 
 .encyclopedia-data-note {
     flex: 0 0 auto;
     color: #68869d;
-    font-size: 9px;
+    font-size: 11px;
 }
 
 .input-panel h1 {
@@ -1131,6 +1131,12 @@ canvas {
         padding: 6px;
     }
 
+    .encyclopedia-search,
+    .encyclopedia-category {
+        min-height: 44px;
+        font-size: 16px;
+    }
+
     .encyclopedia-detail-scroll {
         gap: 8px;
         padding: 8px;
@@ -1180,7 +1186,7 @@ canvas {
     .encyclopedia-detail-name {
         grid-area: name;
         align-self: end;
-        font-size: 20px;
+        font-size: 23px;
     }
 
     .encyclopedia-detail-english-name {
