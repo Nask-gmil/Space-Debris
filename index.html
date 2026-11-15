@@ -4,11 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Space Debris - Three.js</title>
-  <script type="module" crossorigin src="./assets/index-DbJ2KnVC.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-B4TZbsD9.css">
+  <script type="module" crossorigin src="./assets/index-NJLyoQRq.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-DXObyKDF.css">
 </head>
 <body>
     <div class="app">
+        <button type="button" class="encyclopedia-open-button" id="encyclopediaOpenButton" aria-haspopup="dialog" aria-controls="encyclopediaOverlay">
+            ✦ 図鑑
+        </button>
         <aside class="input-panel" id="inputPanel" aria-label="食べ物登録フォーム">
             <button type="button" class="panel-handle" id="inputPanelHandle" aria-expanded="false" aria-controls="inputPanelBody">
                 <span class="panel-handle-label">＋ 食べ物を登録</span>
@@ -53,6 +56,29 @@
             </button>
             <div class="panel-body" id="infoPanelBody">星を選択してください</div>
         </aside>
+        <section class="encyclopedia-overlay" id="encyclopediaOverlay" role="dialog" aria-modal="true" aria-labelledby="encyclopediaTitle" aria-hidden="true" inert>
+            <div class="encyclopedia-shell">
+                <header class="encyclopedia-header">
+                    <div class="encyclopedia-brand">
+                        <span class="encyclopedia-logo" aria-hidden="true">✦</span>
+                        <div>
+                            <span class="encyclopedia-eyebrow">COSMIC ARCHIVE</span>
+                            <h1 id="encyclopediaTitle">宇宙データベース</h1>
+                        </div>
+                    </div>
+                    <nav class="encyclopedia-tabs" aria-label="図鑑メニュー">
+                        <button type="button" class="encyclopedia-tab is-active" aria-current="page">✧ 図鑑</button>
+                        <button type="button" class="encyclopedia-tab" disabled>♧ 実績</button>
+                        <button type="button" class="encyclopedia-tab" disabled>◷ 統計</button>
+                    </nav>
+                    <button type="button" class="encyclopedia-close-button" id="encyclopediaCloseButton" aria-label="図鑑を閉じる">×</button>
+                </header>
+                <div class="encyclopedia-placeholder" aria-hidden="true">
+                    <span class="encyclopedia-placeholder-icon">✧</span>
+                    <p>図鑑の準備中</p>
+                </div>
+            </div>
+        </section>
         <div class="drawer-backdrop" id="drawerBackdrop"></div>
         <div class="supernova-flash" id="supernovaFlash" aria-hidden="true"></div>
         <div class="supernova-message" id="supernovaMessage" aria-hidden="true"></div>
