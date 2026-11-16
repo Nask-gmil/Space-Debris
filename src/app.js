@@ -10,6 +10,16 @@ import { Constants } from './utils/constants.js'
 import { CELESTIAL_BODIES } from './data/celestialBodies.js'
 import { CELESTIAL_BODY_DETAILS } from './data/celestialBodyDetails.js'
 import { ACHIEVEMENTS } from './data/achievements.js'
+import {
+  loadAchievementRecords as loadStoredAchievementRecords,
+  recordAchievementUnlock,
+  recordCreatedGenre,
+  recordFoodEdit,
+  recordFoodRegistration,
+  recordHighestEvolutionStage,
+  reconcileAchievementRecords,
+  saveAchievementRecords as persistAchievementRecords,
+} from './data/achievementRecords.js'
 
 const DEFAULT_INFO_TEXT = '星を選択してください'
 const ORBIT_MARGIN = 6 // 星と星の間に確保する余白。後で調整しやすいように定数化。
@@ -758,8 +768,10 @@ class SpaceDebrisApp {
     // 大きくなった星に合わせて外側の星を押し出す
     this.updateOrbitSpacing()
 
-    targetStar.addFoodEntry(foodName, calories, storeName)
+    const foodEntry = targetStar.addFoodEntry(foodName, calories, storeName)
+    this.achievementRecords = recordFoodRegistration(this.achievementRecords, foodEntry)
     const evolvedStage = targetStar.getEvolutionStage()
+    this.achievementRecords = recordHighestEvolutionStage(this.achievementRecords, evolvedStage)
     console.log('対象の星:', targetStar.name || targetStar.data.name)
     console.log('進化段階:', evolvedStage)
 
@@ -953,6 +965,7 @@ class SpaceDebrisApp {
    * この関数を置き換えるだけで良い設計です。
    */
   saveData() {
+    this.reconcileAchievementDataWithCurrentStars()
     const stars = this.universe.getStarManager().getAllStars()
     const serializableStars = stars.map((star) => {
       if (typeof star.getSerializableData === 'function') {
@@ -972,6 +985,7 @@ class SpaceDebrisApp {
     } catch (error) {
       console.warn('localStorage への保存に失敗しました。', error)
     }
+    this.saveAchievementData()
   }
 
   /**
@@ -979,25 +993,62 @@ class SpaceDebrisApp {
    * ブラウザを再起動しても同じ星データを再現するための土台です。
    */
   loadData() {
+    this.hasMigratedFoodEntries = false
     const rawData = localStorage.getItem(LOCAL_STORAGE_KEY)
-    if (!rawData) return
+    if (!rawData) {
+      this.initializeAchievementData([])
+      return
+    }
 
     let savedData = null
     try {
       savedData = JSON.parse(rawData)
     } catch (error) {
       console.warn('localStorage のデータが読み込めませんでした。', error)
+      this.initializeAchievementData([])
       return
     }
 
-    if (!savedData || !Array.isArray(savedData.stars)) return
+    if (!savedData || !Array.isArray(savedData.stars)) {
+      this.initializeAchievementData([])
+      return
+    }
 
+    const restoredStars = []
     savedData.stars.forEach((starData) => {
       const star = this.createStarFromSavedData(starData)
+      if (star) restoredStars.push(star.data)
       if (star && star.data.genre) {
         this.addGenreOption(star.data.genre)
       }
     })
+    this.initializeAchievementData(restoredStars)
+    if (this.hasMigratedFoodEntries) this.saveData()
+  }
+
+  initializeAchievementData(stars) {
+    const loaded = loadStoredAchievementRecords(localStorage, stars)
+    this.achievementRecords = loaded.records
+    this.canPersistAchievementData = loaded.canPersist
+  }
+
+  saveAchievementData() {
+    if (!this.canPersistAchievementData) return
+    persistAchievementRecords(localStorage, this.achievementRecords)
+  }
+
+  recordAchievementUnlocked(achievementId, unlockedAt) {
+    this.achievementRecords = recordAchievementUnlock(
+      this.achievementRecords,
+      achievementId,
+      unlockedAt,
+    )
+    this.saveAchievementData()
+  }
+
+  reconcileAchievementDataWithCurrentStars() {
+    const stars = this.universe.getStarManager().getAllStars().map((star) => star.data)
+    this.achievementRecords = reconcileAchievementRecords(this.achievementRecords, stars)
   }
 
   /**
@@ -1019,6 +1070,7 @@ class SpaceDebrisApp {
     return foods.map((entry) => {
       if (entry && entry.id) return entry
 
+      this.hasMigratedFoodEntries = true
       return {
         ...entry,
         id:
@@ -1126,6 +1178,7 @@ class SpaceDebrisApp {
 
     star.setMesh(sphere.getMesh())
     this.universe.getStarManager().addStar(star)
+    this.achievementRecords = recordCreatedGenre(this.achievementRecords, genre)
 
     return star
   }
@@ -1531,9 +1584,17 @@ class SpaceDebrisApp {
     const storeName = storeNameInput ? storeNameInput.value.trim() : ''
     const foodName = foodNameInput ? foodNameInput.value.trim() : ''
     const calories = caloriesInput ? Number(caloriesInput.value) : entry.calories
+    const previousCalories = Number(entry.calories)
+    if (!Number.isFinite(calories) || calories < 0) {
+      caloriesInput?.setCustomValidity('カロリーは0以上で入力してください。')
+      caloriesInput?.reportValidity()
+      return
+    }
+    caloriesInput?.setCustomValidity('')
 
     // 新しいオブジェクトや配列を作らず、既存の entry を直接書き換える。
     // ジャンルはここでは変更しない(別ジャンルにしたい場合は新規登録で対応する運用のため)。
+    this.achievementRecords = recordFoodEdit(this.achievementRecords, entry.id, previousCalories, calories)
     entry.name = foodName
     entry.storeName = storeName
     entry.calories = calories
@@ -1542,6 +1603,10 @@ class SpaceDebrisApp {
     // これは削除処理(deleteSelectedFoodEntry)で使っているのと全く同じ、既存の再計算処理。
     star.recalculateCaloriesFromFoods()
     star.updateAppearance(star.getMesh())
+    this.achievementRecords = recordHighestEvolutionStage(
+      this.achievementRecords,
+      star.getEvolutionStage(),
+    )
 
     // 書き換えた内容を localStorage へ保存する。
     // 新しい保存処理は作らず、既存の saveData()(削除・登録のときと同じもの)を再利用する。
