@@ -4,14 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Space Debris - Three.js</title>
-  <script type="module" crossorigin src="./assets/index-B7ODI86R.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-DHqd-z3Y.css">
+  <script type="module" crossorigin src="./assets/index-VmR5poFd.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-B_3Wa-kA.css">
 </head>
 <body>
     <div class="app">
-        <button type="button" class="encyclopedia-open-button" id="encyclopediaOpenButton" aria-haspopup="dialog" aria-controls="encyclopediaOverlay">
-            📖 図鑑
-        </button>
+        <div class="archive-open-buttons">
+            <button type="button" class="encyclopedia-open-button" id="encyclopediaOpenButton" aria-haspopup="dialog" aria-controls="encyclopediaOverlay">
+                📖 図鑑
+            </button>
+            <button type="button" class="achievements-open-button" id="achievementsOpenButton" aria-haspopup="dialog" aria-controls="encyclopediaOverlay">
+                🏆 実績
+            </button>
+        </div>
         <aside class="input-panel" id="inputPanel" aria-label="食べ物登録フォーム">
             <button type="button" class="panel-handle" id="inputPanelHandle" aria-expanded="false" aria-controls="inputPanelBody">
                 <span class="panel-handle-label">＋ 食べ物を登録</span>
@@ -67,8 +72,8 @@
                         </div>
                     </div>
                     <nav class="encyclopedia-tabs" aria-label="図鑑メニュー">
-                        <button type="button" class="encyclopedia-tab is-active" aria-current="page">✧ 図鑑</button>
-                        <button type="button" class="encyclopedia-tab" disabled>♧ 実績</button>
+                        <button type="button" class="encyclopedia-tab is-active" data-archive-view="encyclopedia" aria-current="page">✧ 図鑑</button>
+                        <button type="button" class="encyclopedia-tab" data-archive-view="achievements">♧ 実績</button>
                         <button type="button" class="encyclopedia-tab" disabled>◷ 統計</button>
                     </nav>
                     <button type="button" class="encyclopedia-close-button" id="encyclopediaCloseButton" aria-label="図鑑を閉じる">×</button>
@@ -95,6 +100,32 @@
                     </aside>
                     <section class="encyclopedia-card encyclopedia-detail-panel" id="celestialBodyDetails" aria-live="polite" aria-label="選択した天体の詳細情報"></section>
                 </div>
+                <main class="achievement-content" id="achievementView" aria-label="実績" hidden>
+                    <div class="achievement-toolbar">
+                        <div class="achievement-filters" aria-label="実績の絞り込み">
+                            <button type="button" class="achievement-filter" id="unearnedAchievementsButton" aria-pressed="false">未取得</button>
+                            <button type="button" class="achievement-filter" id="earnedAchievementsButton" aria-pressed="false">取得済</button>
+                        </div>
+                        <span class="achievement-count" id="achievementCount" aria-live="polite">全実績 10件</span>
+                    </div>
+                    <section class="achievement-list-panel">
+                        <header class="achievement-list-heading">
+                            <h2>実績一覧</h2>
+                            <span>アイコンを選択すると詳細を表示</span>
+                        </header>
+                        <div class="achievement-grid" id="achievementGrid" aria-label="実績一覧"></div>
+                    </section>
+                    <p class="achievement-note">※ 未取得の実績は、内容の一部が隠されています。実績を獲得すると詳細が解放されます。</p>
+                </main>
+                <section class="achievement-detail-overlay" id="achievementDetailOverlay" role="dialog" aria-modal="true" aria-labelledby="achievementDetailHeading" aria-hidden="true" inert>
+                    <article class="achievement-detail-card">
+                        <header class="achievement-detail-header">
+                            <h2 class="achievement-detail-heading" id="achievementDetailHeading">実績の詳細</h2>
+                            <button type="button" class="achievement-detail-close" id="achievementDetailCloseButton" aria-label="詳細を閉じる">×</button>
+                        </header>
+                        <div class="achievement-detail-content" id="achievementDetailContent"></div>
+                    </article>
+                </section>
             </div>
         </section>
         <div class="drawer-backdrop" id="drawerBackdrop"></div>
