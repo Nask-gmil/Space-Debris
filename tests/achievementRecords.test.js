@@ -10,6 +10,7 @@ import {
   recordCreatedGenre,
   recordFoodEdit,
   recordFoodRegistration,
+  recordGenreEvolutionStage,
   recordHighestEvolutionStage,
   reconcileAchievementRecords,
   saveAchievementRecords,
@@ -76,6 +77,10 @@ test('migrates available legacy history, genres, and current evolution stages', 
   assert.deepEqual(records.registrationDates, ['2025-03-01', '2025-03-02'])
   assert.deepEqual(records.createdGenres, ['ラーメン', 'カレー'])
   assert.equal(records.highestEvolutionStage, '巨大惑星')
+  assert.deepEqual(records.highestEvolutionStages, {
+    ラーメン: '巨大惑星',
+    カレー: '小惑星',
+  })
   assert.deepEqual(Object.keys(records.processedFoodEntries).sort(), ['food-1', 'food-2'])
 })
 
@@ -87,7 +92,7 @@ test('reconciliation applies missing edits and registrations without losing dele
   records = reconcileAchievementRecords(records, [
     { genre: '麺', calories: 700, foods: [editedFood, newFood] },
   ])
-  records = recordHighestEvolutionStage(records, '巨大惑星')
+  records = recordGenreEvolutionStage(records, '麺', '巨大惑星')
 
   const afterSupernova = reconcileAchievementRecords(records, [])
   assert.equal(afterSupernova.lifetimeRegistrationCount, 2)
@@ -95,6 +100,7 @@ test('reconciliation applies missing edits and registrations without losing dele
   assert.deepEqual(afterSupernova.registrationDates, ['2025-04-01', '2025-04-02'])
   assert.deepEqual(afterSupernova.createdGenres, ['麺'])
   assert.equal(afterSupernova.highestEvolutionStage, '巨大惑星')
+  assert.deepEqual(afterSupernova.highestEvolutionStages, { 麺: '巨大惑星' })
 })
 
 test('persists unlock timestamps and reloads without double-counting legacy food', () => {
@@ -125,6 +131,70 @@ test('keeps genres and highest stage monotonic', () => {
 
   assert.deepEqual(records.createdGenres, ['Ramen'])
   assert.equal(records.highestEvolutionStage, '巨大惑星')
+})
+
+test('tracks independent highest evolution stages by genre and keeps them after reset', () => {
+  let records = createInitialAchievementRecords()
+  records = recordGenreEvolutionStage(records, '寿司', '地球型惑星')
+  records = recordGenreEvolutionStage(records, 'ラーメン', '赤色矮星')
+  records = recordGenreEvolutionStage(records, '寿司', '小惑星')
+  records = recordGenreEvolutionStage(records, 'ラーメン', '赤色矮星')
+
+  assert.deepEqual(records.highestEvolutionStages, {
+    寿司: '地球型惑星',
+    ラーメン: '赤色矮星',
+  })
+
+  records = recordGenreEvolutionStage(records, '寿司', '巨大惑星')
+  assert.equal(records.highestEvolutionStages['寿司'], '巨大惑星')
+
+  const afterSupernova = reconcileAchievementRecords(records, [])
+  assert.deepEqual(afterSupernova.highestEvolutionStages, {
+    寿司: '巨大惑星',
+    ラーメン: '赤色矮星',
+  })
+})
+
+test('chooses the highest stage when multiple current stars share a genre', () => {
+  const records = createInitialAchievementRecords([
+    { genre: '寿司', calories: 2600, foods: [] },
+    { genre: '寿司', calories: 5000, foods: [] },
+    { genre: 'カレー', calories: 700, foods: [] },
+  ])
+
+  assert.deepEqual(records.highestEvolutionStages, {
+    寿司: '褐色矮星',
+    カレー: '小惑星',
+  })
+})
+
+test('migrates version 1 records without assigning the global stage to an unknown genre', () => {
+  const storage = createStorage()
+  const legacyRecords = {
+    ...createInitialAchievementRecords(),
+    version: 1,
+    createdGenres: ['寿司'],
+    highestEvolutionStage: '赤色矮星',
+  }
+  delete legacyRecords.highestEvolutionStages
+  storage.values.set(ACHIEVEMENT_STORAGE_KEY, JSON.stringify(legacyRecords))
+
+  const loaded = loadAchievementRecords(storage, [])
+  const saved = JSON.parse(storage.getItem(ACHIEVEMENT_STORAGE_KEY))
+
+  assert.equal(loaded.records.version, ACHIEVEMENT_DATA_VERSION)
+  assert.equal(loaded.records.highestEvolutionStage, '赤色矮星')
+  assert.deepEqual(loaded.records.highestEvolutionStages, {})
+  assert.equal(saved.version, ACHIEVEMENT_DATA_VERSION)
+  assert.deepEqual(saved.highestEvolutionStages, {})
+
+  const activeStorage = createStorage()
+  activeStorage.values.set(ACHIEVEMENT_STORAGE_KEY, JSON.stringify(legacyRecords))
+  const activeLoaded = loadAchievementRecords(activeStorage, [
+    { genre: 'カレー', calories: 2000, foods: [] },
+  ])
+  assert.equal(activeLoaded.records.highestEvolutionStage, '赤色矮星')
+  assert.deepEqual(activeLoaded.records.highestEvolutionStages, { カレー: '地球型惑星' })
 })
 
 test('does not overwrite a future achievement data version', () => {

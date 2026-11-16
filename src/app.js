@@ -16,7 +16,7 @@ import {
   recordCreatedGenre,
   recordFoodEdit,
   recordFoodRegistration,
-  recordHighestEvolutionStage,
+  recordGenreEvolutionStage,
   reconcileAchievementRecords,
   saveAchievementRecords as persistAchievementRecords,
 } from './data/achievementRecords.js'
@@ -771,7 +771,11 @@ class SpaceDebrisApp {
     const foodEntry = targetStar.addFoodEntry(foodName, calories, storeName)
     this.achievementRecords = recordFoodRegistration(this.achievementRecords, foodEntry)
     const evolvedStage = targetStar.getEvolutionStage()
-    this.achievementRecords = recordHighestEvolutionStage(this.achievementRecords, evolvedStage)
+    this.achievementRecords = recordGenreEvolutionStage(
+      this.achievementRecords,
+      targetStar.data.genre,
+      evolvedStage,
+    )
     console.log('対象の星:', targetStar.name || targetStar.data.name)
     console.log('進化段階:', evolvedStage)
 
@@ -1603,8 +1607,9 @@ class SpaceDebrisApp {
     // これは削除処理(deleteSelectedFoodEntry)で使っているのと全く同じ、既存の再計算処理。
     star.recalculateCaloriesFromFoods()
     star.updateAppearance(star.getMesh())
-    this.achievementRecords = recordHighestEvolutionStage(
+    this.achievementRecords = recordGenreEvolutionStage(
       this.achievementRecords,
+      star.data.genre,
       star.getEvolutionStage(),
     )
 

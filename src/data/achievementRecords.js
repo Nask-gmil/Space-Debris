@@ -1,7 +1,7 @@
 import { Constants } from '../utils/constants.js'
 
 export const ACHIEVEMENT_STORAGE_KEY = 'spaceDebrisAchievementData'
-export const ACHIEVEMENT_DATA_VERSION = 1
+export const ACHIEVEMENT_DATA_VERSION = 2
 
 const TOKYO_TIME_ZONE = 'Asia/Tokyo'
 const datePartsFormatter = new Intl.DateTimeFormat('en', {
@@ -50,6 +50,12 @@ const addCreatedGenre = (genres, genre) => {
   return exists ? genres : [...genres, normalizedGenre]
 }
 
+const getCanonicalGenre = (genres, genre) => {
+  if (typeof genre !== 'string' || !genre.trim()) return null
+  const normalizedGenre = genre.trim()
+  return genres.find((item) => item.toLowerCase() === normalizedGenre.toLowerCase()) || normalizedGenre
+}
+
 export function getJapanDateKey(value) {
   if (value == null || value === '') return null
   const date = value instanceof Date ? value : new Date(value)
@@ -87,6 +93,18 @@ export function createInitialAchievementRecords(stars = []) {
     const currentStage = getStageForCalories(calories)
     return getStageIndex(currentStage) > getStageIndex(highest) ? currentStage : highest
   }, null)
+  const stagesByGenre = new Map()
+  safeStars.forEach((star) => {
+    const genre = getCanonicalGenre(createdGenres, star?.genre)
+    const calories = Number(star?.calories)
+    if (!genre || !Number.isFinite(calories) || calories < 0) return
+
+    const stage = getStageForCalories(calories)
+    const previousStage = stagesByGenre.get(genre)
+    if (getStageIndex(stage) > getStageIndex(previousStage)) {
+      stagesByGenre.set(genre, stage)
+    }
+  })
   const lifetimeCalories = safeStars.reduce((total, star) => {
     const calories = Number(star?.calories)
     if (Number.isFinite(calories) && calories >= 0) return total + calories
@@ -102,6 +120,7 @@ export function createInitialAchievementRecords(stars = []) {
     registrationDates,
     createdGenres,
     highestEvolutionStage,
+    highestEvolutionStages: Object.fromEntries(stagesByGenre),
     unlockedAchievements: {},
     processedFoodEntries,
   }
@@ -110,6 +129,13 @@ export function createInitialAchievementRecords(stars = []) {
 export function normalizeAchievementRecords(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new TypeError('Achievement data must be an object')
+  }
+  if (value.version === 1) {
+    value = {
+      ...value,
+      version: ACHIEVEMENT_DATA_VERSION,
+      highestEvolutionStages: value.highestEvolutionStages ?? {},
+    }
   }
   if (value.version !== ACHIEVEMENT_DATA_VERSION) {
     throw new RangeError(`Unsupported achievement data version: ${value.version}`)
@@ -120,6 +146,9 @@ export function normalizeAchievementRecords(value) {
       !value.unlockedAchievements ||
       typeof value.unlockedAchievements !== 'object' ||
       Array.isArray(value.unlockedAchievements) ||
+      !value.highestEvolutionStages ||
+      typeof value.highestEvolutionStages !== 'object' ||
+      Array.isArray(value.highestEvolutionStages) ||
       !value.processedFoodEntries ||
       typeof value.processedFoodEntries !== 'object' ||
       Array.isArray(value.processedFoodEntries)) {
@@ -130,6 +159,19 @@ export function normalizeAchievementRecords(value) {
   if (highestEvolutionStage !== null && getStageIndex(highestEvolutionStage) < 0) {
     throw new TypeError('Achievement data contains an unknown evolution stage')
   }
+
+  const highestEvolutionStages = {}
+  Object.entries(value.highestEvolutionStages).forEach(([genre, stage]) => {
+    if (!genre.trim() || getStageIndex(stage) < 0) {
+      throw new TypeError('Achievement data contains an invalid genre evolution stage')
+    }
+    Object.defineProperty(highestEvolutionStages, genre, {
+      value: stage,
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    })
+  })
 
   const processedFoodEntries = {}
   Object.entries(value.processedFoodEntries).forEach(([id, entry]) => {
@@ -167,6 +209,7 @@ export function normalizeAchievementRecords(value) {
     registrationDates: registrationDates.sort(),
     createdGenres,
     highestEvolutionStage,
+    highestEvolutionStages,
     unlockedAchievements,
     processedFoodEntries,
   }
@@ -238,6 +281,31 @@ export function recordHighestEvolutionStage(records, stageName) {
   return { ...records, highestEvolutionStage: stageName }
 }
 
+export function recordGenreEvolutionStage(records, genre, stageName) {
+  const nextIndex = getStageIndex(stageName)
+  if (nextIndex < 0) return records
+
+  const withGenre = recordCreatedGenre(records, genre)
+  const genreKey = getCanonicalGenre(withGenre.createdGenres, genre)
+  const globalRecords = recordHighestEvolutionStage(withGenre, stageName)
+  if (!genreKey) return globalRecords
+
+  const existingKey = Object.keys(globalRecords.highestEvolutionStages).find(
+    (key) => key.toLowerCase() === genreKey.toLowerCase()
+  )
+  const key = existingKey || genreKey
+  const currentStage = globalRecords.highestEvolutionStages[key]
+  if (nextIndex <= getStageIndex(currentStage)) return globalRecords
+
+  return {
+    ...globalRecords,
+    highestEvolutionStages: Object.fromEntries([
+      ...Object.entries(globalRecords.highestEvolutionStages).filter(([existing]) => existing !== key),
+      [key, stageName],
+    ]),
+  }
+}
+
 export function recordAchievementUnlock(records, achievementId, unlockedAt = new Date().toISOString()) {
   if (typeof achievementId !== 'string' || !achievementId) {
     throw new TypeError('An achievement ID is required')
@@ -263,7 +331,7 @@ export function reconcileAchievementRecords(records, stars = []) {
     reconciled = recordCreatedGenre(reconciled, star?.genre)
     const calories = Number(star?.calories)
     if (Number.isFinite(calories) && calories >= 0) {
-      reconciled = recordHighestEvolutionStage(reconciled, getStageForCalories(calories))
+      reconciled = recordGenreEvolutionStage(reconciled, star?.genre, getStageForCalories(calories))
     }
 
     const foods = Array.isArray(star?.foods) ? star.foods : []
@@ -344,7 +412,8 @@ export function loadAchievementRecords(storage, currentStars = []) {
   }
 
   const reconciledRecords = reconcileAchievementRecords(records, currentStars)
-  if (JSON.stringify(reconciledRecords) !== JSON.stringify(records)) {
+  if (parsedData.version !== ACHIEVEMENT_DATA_VERSION ||
+      JSON.stringify(reconciledRecords) !== JSON.stringify(records)) {
     saveAchievementRecords(storage, reconciledRecords)
   }
   return { records: reconciledRecords, canPersist: true }
