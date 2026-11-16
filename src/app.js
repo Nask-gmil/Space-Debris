@@ -9,6 +9,7 @@ import { CentralSphere } from './universe/CentralSphere.js'
 import { Constants } from './utils/constants.js'
 import { CELESTIAL_BODIES } from './data/celestialBodies.js'
 import { CELESTIAL_BODY_DETAILS } from './data/celestialBodyDetails.js'
+import { ACHIEVEMENTS } from './data/achievements.js'
 
 const DEFAULT_INFO_TEXT = '星を選択してください'
 const ORBIT_MARGIN = 6 // 星と星の間に確保する余白。後で調整しやすいように定数化。
@@ -233,25 +234,66 @@ class SpaceDebrisApp {
 
     const encyclopediaOverlay = document.getElementById('encyclopediaOverlay')
     const encyclopediaOpenButton = document.getElementById('encyclopediaOpenButton')
+    const achievementsOpenButton = document.getElementById('achievementsOpenButton')
     const encyclopediaCloseButton = document.getElementById('encyclopediaCloseButton')
+    const archiveTabs = document.querySelectorAll('.encyclopedia-tab[data-archive-view]')
+    let lastArchiveTrigger = encyclopediaOpenButton
+    const setArchiveView = (view) => {
+      const encyclopediaView = document.querySelector('.encyclopedia-content')
+      const achievementView = document.getElementById('achievementView')
+      if (!encyclopediaView || !achievementView) return
+
+      const showingAchievements = view === 'achievements'
+      encyclopediaView.hidden = showingAchievements
+      achievementView.hidden = !showingAchievements
+      archiveTabs.forEach((tab) => {
+        const isActive = tab.dataset.archiveView === view
+        tab.classList.toggle('is-active', isActive)
+        if (isActive) {
+          tab.setAttribute('aria-current', 'page')
+        } else {
+          tab.removeAttribute('aria-current')
+        }
+      })
+      this.closeAchievementDetail(false)
+    }
     const setEncyclopediaOpen = (isOpen) => {
       if (!encyclopediaOverlay) return
       encyclopediaOverlay.classList.toggle('is-open', isOpen)
       encyclopediaOverlay.setAttribute('aria-hidden', String(!isOpen))
       encyclopediaOverlay.inert = !isOpen
       if (encyclopediaOpenButton) encyclopediaOpenButton.setAttribute('aria-expanded', String(isOpen))
+      if (achievementsOpenButton) achievementsOpenButton.setAttribute('aria-expanded', String(isOpen))
+      if (!isOpen) this.closeAchievementDetail(false)
       if (isOpen) {
         encyclopediaCloseButton?.focus()
       } else {
-        encyclopediaOpenButton?.focus()
+        lastArchiveTrigger?.focus()
       }
     }
 
-    encyclopediaOpenButton?.addEventListener('click', () => setEncyclopediaOpen(true))
+    encyclopediaOpenButton?.addEventListener('click', () => {
+      lastArchiveTrigger = encyclopediaOpenButton
+      setArchiveView('encyclopedia')
+      setEncyclopediaOpen(true)
+    })
+    achievementsOpenButton?.addEventListener('click', () => {
+      lastArchiveTrigger = achievementsOpenButton
+      setArchiveView('achievements')
+      setEncyclopediaOpen(true)
+    })
     encyclopediaCloseButton?.addEventListener('click', () => setEncyclopediaOpen(false))
+    archiveTabs.forEach((tab) => {
+      tab.addEventListener('click', () => setArchiveView(tab.dataset.archiveView))
+    })
     window.addEventListener('keydown', (event) => {
       if (event.key === 'Escape' && encyclopediaOverlay?.classList.contains('is-open')) {
-        setEncyclopediaOpen(false)
+        const detailOverlay = document.getElementById('achievementDetailOverlay')
+        if (detailOverlay?.classList.contains('is-open')) {
+          this.closeAchievementDetail()
+        } else {
+          setEncyclopediaOpen(false)
+        }
       }
     })
 
@@ -325,6 +367,216 @@ class SpaceDebrisApp {
     this.celestialBodyCategory?.addEventListener('change', () => this.renderEncyclopediaList())
     this.renderEncyclopediaList()
     this.renderEncyclopediaDetails()
+    this.setupAchievementPanel()
+  }
+
+  setupAchievementPanel() {
+    this.achievementGrid = document.getElementById('achievementGrid')
+    this.achievementCount = document.getElementById('achievementCount')
+    this.achievementDetailOverlay = document.getElementById('achievementDetailOverlay')
+    this.achievementDetailContent = document.getElementById('achievementDetailContent')
+    this.achievementDetailHeading = document.getElementById('achievementDetailHeading')
+    this.achievementDetailCloseButton = document.getElementById('achievementDetailCloseButton')
+    this.achievementFilter = 'all'
+    this.selectedAchievementId = null
+
+    document.getElementById('unearnedAchievementsButton')?.addEventListener('click', () => {
+      this.setAchievementFilter('unearned')
+    })
+    document.getElementById('earnedAchievementsButton')?.addEventListener('click', () => {
+      this.setAchievementFilter('earned')
+    })
+    this.achievementDetailCloseButton?.addEventListener('click', () => this.closeAchievementDetail())
+    this.achievementDetailOverlay?.addEventListener('click', (event) => {
+      if (event.target === this.achievementDetailOverlay) this.closeAchievementDetail()
+    })
+
+    this.renderAchievementGrid()
+  }
+
+  setAchievementFilter(filter) {
+    this.achievementFilter = this.achievementFilter === filter ? 'all' : filter
+    this.closeAchievementDetail(false)
+    this.renderAchievementGrid()
+  }
+
+  renderAchievementGrid() {
+    if (!this.achievementGrid) return
+
+    const visibleAchievements = ACHIEVEMENTS.filter((achievement) =>
+      this.achievementFilter === 'all' || achievement.earned === (this.achievementFilter === 'earned')
+    )
+    this.achievementGrid.replaceChildren()
+
+    visibleAchievements.forEach((achievement) => {
+      const item = document.createElement('button')
+      item.type = 'button'
+      item.className = 'achievement-item'
+      item.classList.toggle('is-earned', achievement.earned)
+      item.classList.toggle('is-selected', achievement.id === this.selectedAchievementId)
+      item.dataset.achievementId = achievement.id
+      item.setAttribute('aria-label', achievement.earned ? achievement.name : '未取得の実績')
+
+      const icon = document.createElement('span')
+      icon.className = achievement.earned ? 'achievement-icon' : 'achievement-mystery'
+      icon.setAttribute('aria-hidden', 'true')
+      icon.textContent = achievement.earned ? achievement.icon : '?'
+
+      const name = document.createElement('span')
+      name.className = 'achievement-name'
+      name.textContent = achievement.earned ? achievement.name : '？？？'
+
+      const state = document.createElement('span')
+      state.className = 'achievement-state'
+      state.textContent = achievement.earned ? '✓ 取得済' : '未取得'
+
+      item.append(icon, name, state)
+      item.addEventListener('click', () => this.openAchievementDetail(achievement))
+      this.achievementGrid.append(item)
+    })
+
+    if (this.achievementCount) {
+      const filterLabel = this.achievementFilter === 'all'
+        ? '全実績'
+        : this.achievementFilter === 'earned'
+          ? '取得済'
+          : '未取得'
+      this.achievementCount.textContent = `${filterLabel} ${visibleAchievements.length}件`
+    }
+    document.getElementById('unearnedAchievementsButton')?.setAttribute(
+      'aria-pressed',
+      String(this.achievementFilter === 'unearned')
+    )
+    document.getElementById('earnedAchievementsButton')?.setAttribute(
+      'aria-pressed',
+      String(this.achievementFilter === 'earned')
+    )
+    document.getElementById('unearnedAchievementsButton')?.classList.toggle(
+      'is-active',
+      this.achievementFilter === 'unearned'
+    )
+    document.getElementById('earnedAchievementsButton')?.classList.toggle(
+      'is-active',
+      this.achievementFilter === 'earned'
+    )
+  }
+
+  openAchievementDetail(achievement) {
+    this.selectedAchievementId = achievement.id
+    this.renderAchievementGrid()
+    this.renderAchievementDetails(achievement)
+    if (!this.achievementDetailOverlay) return
+
+    this.achievementDetailOverlay.classList.add('is-open')
+    this.achievementDetailOverlay.setAttribute('aria-hidden', 'false')
+    this.achievementDetailOverlay.inert = false
+    this.achievementDetailCloseButton?.focus()
+  }
+
+  closeAchievementDetail(restoreFocus = true) {
+    if (!this.achievementDetailOverlay?.classList.contains('is-open')) return
+
+    const closedAchievementId = this.selectedAchievementId
+    this.achievementDetailOverlay.classList.remove('is-open')
+    this.achievementDetailOverlay.setAttribute('aria-hidden', 'true')
+    this.achievementDetailOverlay.inert = true
+    this.selectedAchievementId = null
+    this.renderAchievementGrid()
+
+    if (restoreFocus) {
+      const selectedItem = Array.from(this.achievementGrid?.querySelectorAll('[data-achievement-id]') || [])
+        .find((item) => item.dataset.achievementId === closedAchievementId)
+      selectedItem?.focus()
+    }
+  }
+
+  renderAchievementDetails(achievement) {
+    if (!this.achievementDetailContent || !this.achievementDetailHeading) return
+
+    const createElement = (tagName, className, text) => {
+      const element = document.createElement(tagName)
+      if (className) element.className = className
+      if (text !== undefined) element.textContent = text
+      return element
+    }
+    const formatNumber = (value) => Number(value).toLocaleString('ja-JP')
+    const progress = achievement.target > 0
+      ? Math.min(100, Math.round((achievement.current / achievement.target) * 100))
+      : 0
+    const content = []
+
+    this.achievementDetailHeading.textContent = achievement.earned ? '取得済み実績' : '未取得の実績'
+
+    if (achievement.earned) {
+      const top = createElement('div', 'achievement-detail-top')
+      const icon = createElement('div', 'achievement-detail-icon', achievement.icon)
+      icon.setAttribute('aria-hidden', 'true')
+      const title = createElement('div', 'achievement-detail-title')
+      title.append(
+        createElement('span', 'achievement-detail-kicker', `${achievement.category} / ACHIEVEMENT`),
+        createElement('h2', '', achievement.name),
+        createElement('span', 'achievement-detail-status', '✓ 取得済み'),
+      )
+      top.append(icon, title)
+      content.push(top)
+    }
+
+    const description = createElement('section', 'achievement-detail-block')
+    description.append(
+      createElement('h3', '', '実績の説明'),
+      createElement('p', 'achievement-description', achievement.description),
+    )
+    content.push(description)
+
+    const progressBlock = createElement('section', 'achievement-detail-block')
+    const progressHeader = createElement('div', 'achievement-progress-header')
+    const progressText = achievement.earned
+      ? '達成しました'
+      : `達成まであと ${formatNumber(Math.max(0, achievement.target - achievement.current))} ${achievement.unit}`
+    progressHeader.append(
+      createElement('span', '', progressText),
+      createElement('span', 'achievement-progress-value', `${formatNumber(achievement.current)} / ${formatNumber(achievement.target)} ${achievement.unit}`),
+    )
+    const progressTrack = createElement('div', 'achievement-progress-track')
+    progressTrack.setAttribute('role', 'progressbar')
+    progressTrack.setAttribute('aria-label', '進捗状況')
+    progressTrack.setAttribute('aria-valuemin', '0')
+    progressTrack.setAttribute('aria-valuemax', '100')
+    progressTrack.setAttribute('aria-valuenow', String(progress))
+    const progressFill = createElement('div', 'achievement-progress-fill')
+    progressFill.style.width = `${progress}%`
+    progressTrack.append(progressFill)
+    progressBlock.append(
+      createElement('h3', '', '進捗状況'),
+      progressHeader,
+      progressTrack,
+      createElement('p', 'achievement-progress-note', `${progress}% 完了`),
+    )
+    content.push(progressBlock)
+
+    if (achievement.earned) {
+      const serialBlock = createElement('section', 'achievement-detail-block')
+      serialBlock.append(
+        createElement('h3', '', 'シリアルコード（表示サンプル）'),
+      )
+      const serialCode = createElement('code', 'achievement-serial', achievement.serial)
+      serialBlock.append(serialCode)
+      serialBlock.append(createElement(
+        'p',
+        'achievement-disclaimer',
+        '※このコードはUI確認用の仮データです。データ復元機能は含まれていません。',
+      ))
+      content.push(serialBlock)
+
+      const triviaBlock = createElement('section', 'achievement-detail-block achievement-trivia')
+      triviaBlock.append(
+        createElement('h3', '', '✦ ちょい足し豆知識'),
+        createElement('p', '', achievement.trivia),
+      )
+      content.push(triviaBlock)
+    }
+
+    this.achievementDetailContent.replaceChildren(...content)
   }
 
   renderEncyclopediaList() {
