@@ -157,15 +157,47 @@
                                     <h2 id="calorieTrendHeading">カロリー推移</h2>
                                     <p>日ごとの摂取カロリー</p>
                                 </div>
-                                <div class="statistics-period-switch" role="group" aria-label="グラフの期間">
-                                    <button type="button" class="statistics-period-button is-active" data-calorie-period="7d" aria-pressed="true">7日</button>
-                                    <button type="button" class="statistics-period-button" data-calorie-period="30d" aria-pressed="false">30日</button>
-                                    <button type="button" class="statistics-period-button" data-calorie-period="1y" aria-pressed="false">1年</button>
+                                <div class="statistics-chart-controls">
+                                    <div class="statistics-view-switch" role="group" aria-label="統計表示">
+                                        <button type="button" class="statistics-view-button is-active" data-statistics-display="chart" aria-pressed="true">グラフ</button>
+                                        <button type="button" class="statistics-view-button" data-statistics-display="calendar" aria-pressed="false">カレンダー</button>
+                                    </div>
+                                    <div class="statistics-period-switch" id="calorieTrendPeriods" role="group" aria-label="グラフの期間">
+                                        <button type="button" class="statistics-period-button is-active" data-calorie-period="7d" aria-pressed="true">7日</button>
+                                        <button type="button" class="statistics-period-button" data-calorie-period="30d" aria-pressed="false">30日</button>
+                                        <button type="button" class="statistics-period-button" data-calorie-period="1y" aria-pressed="false">1年</button>
+                                    </div>
                                 </div>
                             </header>
-                            <div class="statistics-chart-wrap">
+                            <div class="statistics-chart-wrap statistics-chart-view" id="calorieTrendView">
                                 <svg id="calorieTrendChart" role="img" aria-label="日別カロリー推移グラフ"></svg>
                             </div>
+                            <section class="meal-calendar-view" id="mealCalendarView" aria-label="食事カレンダー" hidden>
+                                <div class="meal-calendar-layout">
+                                    <section class="meal-calendar">
+                                        <header class="meal-calendar-header">
+                                            <div class="meal-calendar-month-controls">
+                                                <button type="button" class="meal-calendar-nav-button" id="mealCalendarPreviousMonth" aria-label="前月">‹</button>
+                                                <h3 id="mealCalendarMonthLabel" aria-live="polite"></h3>
+                                                <button type="button" class="meal-calendar-nav-button" id="mealCalendarNextMonth" aria-label="翌月">›</button>
+                                            </div>
+                                            <button type="button" class="meal-calendar-today-button" id="mealCalendarTodayButton">今月</button>
+                                        </header>
+                                        <div class="meal-calendar-weekdays" aria-hidden="true">
+                                            <span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span><span>日</span>
+                                        </div>
+                                        <div class="meal-calendar-days" id="mealCalendarDays" role="group" aria-label="日付を選択"></div>
+                                    </section>
+                                    <section class="meal-day-details" aria-label="選択した日の食事履歴" aria-live="polite">
+                                        <header class="meal-day-details-header">
+                                            <h3 id="selectedMealDate">日付を選択してください</h3>
+                                            <p id="selectedMealTotal"></p>
+                                        </header>
+                                        <p class="meal-calendar-empty" id="mealCalendarEmpty" hidden>この日の食事記録はありません。</p>
+                                        <ul class="meal-calendar-food-list" id="mealCalendarFoodList" hidden></ul>
+                                    </section>
+                                </div>
+                            </section>
                         </section>
                     </div>
                 </main>

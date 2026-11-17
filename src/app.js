@@ -11,6 +11,8 @@ import { CELESTIAL_BODIES } from './data/celestialBodies.js'
 import { CELESTIAL_BODY_DETAILS } from './data/celestialBodyDetails.js'
 import { ACHIEVEMENTS } from './data/achievements.js'
 import { createDailyCalorieSeries } from './data/calorieTrend.js'
+import { createMealCalendarMonth, shiftCalendarMonth } from './data/mealCalendar.js'
+import { getStatisticsDateRange } from './data/statisticsDateRange.js'
 import {
   loadAchievementRecords as loadStoredAchievementRecords,
   recordAchievementUnlock,
@@ -46,7 +48,29 @@ const CHART_TOOLTIP_DATE_FORMAT = new Intl.DateTimeFormat('ja-JP', {
   month: 'long',
   day: 'numeric',
 })
+const MEAL_CALENDAR_MONTH_FORMAT = new Intl.DateTimeFormat('ja-JP', {
+  timeZone: 'UTC',
+  year: 'numeric',
+  month: 'long',
+})
+const MEAL_CALENDAR_DATE_FORMAT = new Intl.DateTimeFormat('ja-JP', {
+  timeZone: 'UTC',
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
+})
+const MEAL_CALENDAR_TIME_FORMAT = new Intl.DateTimeFormat('ja-JP', {
+  timeZone: 'Asia/Tokyo',
+  hour: '2-digit',
+  minute: '2-digit',
+})
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg'
+const createTextElement = (tagName, className, text) => {
+  const element = document.createElement(tagName)
+  if (className) element.className = className
+  if (text != null) element.textContent = text
+  return element
+}
 const createSvgElement = (name, attributes = {}) => {
   const element = document.createElementNS(SVG_NAMESPACE, name)
   Object.entries(attributes).forEach(([attribute, value]) => {
@@ -243,6 +267,9 @@ class SpaceDebrisApp {
     // 現在編集中の食事データのID。編集モードでなければ null。
     this.editingFoodId = null
     this.calorieTrendPeriod = '7d'
+    this.statisticsDisplayMode = 'chart'
+    this.calendarDisplayedMonth = null
+    this.selectedCalendarDate = null
     this.setInfoPanelDefault()
     this.setupManagers()
     this.setupUniverse()
@@ -347,6 +374,29 @@ class SpaceDebrisApp {
         this.calorieTrendPeriod = period
         this.renderCalorieTrendChart()
       })
+    })
+    document.querySelectorAll('[data-statistics-display]').forEach((button) => {
+      button.addEventListener('click', () => {
+        this.setStatisticsDisplayMode(button.dataset.statisticsDisplay)
+      })
+    })
+    document.getElementById('mealCalendarPreviousMonth')?.addEventListener(
+      'click',
+      () => this.changeMealCalendarMonth(-1),
+    )
+    document.getElementById('mealCalendarNextMonth')?.addEventListener(
+      'click',
+      () => this.changeMealCalendarMonth(1),
+    )
+    document.getElementById('mealCalendarTodayButton')?.addEventListener(
+      'click',
+      () => this.showCurrentMealCalendarMonth(),
+    )
+    document.getElementById('mealCalendarDays')?.addEventListener('click', (event) => {
+      const dayButton = event.target.closest('button[data-calendar-date]')
+      if (!dayButton || dayButton.disabled) return
+      this.selectedCalendarDate = dayButton.dataset.calendarDate
+      this.renderMealCalendar()
     })
     window.addEventListener('keydown', (event) => {
       if (event.key === 'Escape' && encyclopediaOverlay?.classList.contains('is-open')) {
@@ -1109,7 +1159,34 @@ class SpaceDebrisApp {
       const element = document.getElementById(id)
       if (element) element.textContent = value
     })
-    this.renderCalorieTrendChart()
+    if (this.statisticsDisplayMode === 'calendar') {
+      this.renderMealCalendar()
+    } else {
+      this.renderCalorieTrendChart()
+    }
+  }
+
+  setStatisticsDisplayMode(mode) {
+    if (mode !== 'chart' && mode !== 'calendar') {
+      throw new TypeError(`Unsupported statistics display mode: ${mode}`)
+    }
+    this.statisticsDisplayMode = mode
+
+    const chartView = document.getElementById('calorieTrendView')
+    const calendarView = document.getElementById('mealCalendarView')
+    const periodSwitch = document.getElementById('calorieTrendPeriods')
+    if (chartView) chartView.hidden = mode !== 'chart'
+    if (calendarView) calendarView.hidden = mode !== 'calendar'
+    if (periodSwitch) periodSwitch.hidden = mode !== 'chart'
+
+    document.querySelectorAll('[data-statistics-display]').forEach((button) => {
+      const isActive = button.dataset.statisticsDisplay === mode
+      button.classList.toggle('is-active', isActive)
+      button.setAttribute('aria-pressed', String(isActive))
+    })
+
+    if (mode === 'calendar') this.renderMealCalendar()
+    else this.renderCalorieTrendChart()
   }
 
   renderCalorieTrendChart() {
@@ -1244,6 +1321,161 @@ class SpaceDebrisApp {
     })
     xAxisTitle.textContent = '日付'
     svg.appendChild(xAxisTitle)
+  }
+
+  changeMealCalendarMonth(offset) {
+    const now = new Date()
+    const { startDateKey, endDateKey } = getStatisticsDateRange('1y', now)
+    const currentMonth = endDateKey.slice(0, 7)
+    const earliestMonth = startDateKey.slice(0, 7)
+    const displayedMonth = this.calendarDisplayedMonth || currentMonth
+    const nextMonth = shiftCalendarMonth(displayedMonth, offset)
+    if (nextMonth < earliestMonth || nextMonth > currentMonth) return
+
+    this.calendarDisplayedMonth = nextMonth
+    this.selectedCalendarDate = null
+    this.renderMealCalendar()
+  }
+
+  showCurrentMealCalendarMonth() {
+    const { endDateKey } = getStatisticsDateRange('1y', new Date())
+    this.calendarDisplayedMonth = endDateKey.slice(0, 7)
+    this.selectedCalendarDate = endDateKey
+    this.renderMealCalendar()
+  }
+
+  renderMealCalendar() {
+    if (!this.achievementRecords) return
+
+    const now = new Date()
+    const { startDateKey, endDateKey } = getStatisticsDateRange('1y', now)
+    const currentMonth = endDateKey.slice(0, 7)
+    const earliestMonth = startDateKey.slice(0, 7)
+    if (!this.calendarDisplayedMonth) this.calendarDisplayedMonth = currentMonth
+
+    const calendar = createMealCalendarMonth(
+      this.achievementRecords.processedFoodEntries,
+      this.calendarDisplayedMonth,
+      now,
+    )
+    const monthLabel = document.getElementById('mealCalendarMonthLabel')
+    const daysContainer = document.getElementById('mealCalendarDays')
+    const previousButton = document.getElementById('mealCalendarPreviousMonth')
+    const nextButton = document.getElementById('mealCalendarNextMonth')
+    const todayButton = document.getElementById('mealCalendarTodayButton')
+    const selectedDateHeading = document.getElementById('selectedMealDate')
+    const selectedTotal = document.getElementById('selectedMealTotal')
+    const emptyMessage = document.getElementById('mealCalendarEmpty')
+    const foodList = document.getElementById('mealCalendarFoodList')
+    if (!monthLabel || !daysContainer || !selectedDateHeading ||
+        !selectedTotal || !emptyMessage || !foodList) {
+      return
+    }
+
+    monthLabel.textContent = MEAL_CALENDAR_MONTH_FORMAT.format(
+      new Date(`${calendar.monthKey}-01T00:00:00.000Z`),
+    )
+    if (previousButton) previousButton.disabled = calendar.monthKey <= earliestMonth
+    if (nextButton) nextButton.disabled = calendar.monthKey >= currentMonth
+    if (todayButton) todayButton.disabled = calendar.monthKey === currentMonth
+
+    let selectedDay = calendar.days.find(
+      (day) => day.date === this.selectedCalendarDate && day.isAvailable,
+    )
+    if (!selectedDay) {
+      selectedDay = calendar.days.find((day) => day.isToday && day.isAvailable) ||
+        calendar.days.find((day) => day.isAvailable) ||
+        null
+      this.selectedCalendarDate = selectedDay?.date || null
+    }
+
+    daysContainer.replaceChildren()
+    for (let index = 0; index < calendar.firstWeekdayMonday; index += 1) {
+      daysContainer.appendChild(createTextElement('span', 'meal-calendar-blank'))
+    }
+    calendar.days.forEach((day) => {
+      const dayButton = document.createElement('button')
+      dayButton.type = 'button'
+      dayButton.className = 'meal-calendar-day'
+      dayButton.dataset.calendarDate = day.date
+      dayButton.disabled = !day.isAvailable
+      dayButton.classList.toggle('has-meals', day.hasMeals)
+      dayButton.classList.toggle('is-today', day.isToday)
+      dayButton.classList.toggle('is-selected', day.date === this.selectedCalendarDate)
+      dayButton.setAttribute('aria-pressed', String(day.date === this.selectedCalendarDate))
+      const dateLabel = MEAL_CALENDAR_DATE_FORMAT.format(
+        new Date(`${day.date}T00:00:00.000Z`),
+      )
+      dayButton.setAttribute(
+        'aria-label',
+        `${dateLabel}、${day.hasMeals
+          ? `${day.meals.length}件、合計${STAT_NUMBER_FORMAT.format(day.totalCalories)} kcal`
+          : day.isAvailable ? '食事記録なし' : '対象期間外'}`,
+      )
+      dayButton.appendChild(createTextElement('span', 'meal-calendar-day-number', String(day.day)))
+      dayButton.appendChild(createTextElement(
+        'span',
+        'meal-calendar-day-total',
+        day.hasMeals ? `${STAT_NUMBER_FORMAT.format(day.totalCalories)} kcal` : '',
+      ))
+      daysContainer.appendChild(dayButton)
+    })
+    const cellCount = calendar.firstWeekdayMonday + calendar.days.length
+    for (let index = cellCount; index < 42; index += 1) {
+      daysContainer.appendChild(createTextElement('span', 'meal-calendar-blank'))
+    }
+
+    foodList.replaceChildren()
+    if (!selectedDay) {
+      selectedDateHeading.textContent = '日付を選択してください'
+      selectedTotal.textContent = ''
+      emptyMessage.hidden = false
+      emptyMessage.textContent = '表示できる食事履歴はありません。'
+      foodList.hidden = true
+      return
+    }
+
+    selectedDateHeading.textContent = MEAL_CALENDAR_DATE_FORMAT.format(
+      new Date(`${selectedDay.date}T00:00:00.000Z`),
+    )
+    selectedTotal.textContent = `合計 ${STAT_NUMBER_FORMAT.format(selectedDay.totalCalories)} kcal`
+    emptyMessage.hidden = selectedDay.meals.length > 0
+    emptyMessage.textContent = 'この日の食事記録はありません。'
+    foodList.hidden = selectedDay.meals.length === 0
+
+    selectedDay.meals.forEach((meal) => {
+      const item = createTextElement('li', 'meal-calendar-food-item')
+      const main = createTextElement('div', 'meal-calendar-food-main')
+      main.append(
+        createTextElement('span', 'meal-calendar-food-name', meal.name || '名称不明'),
+        createTextElement(
+          'span',
+          'meal-calendar-food-calories',
+          `${STAT_NUMBER_FORMAT.format(meal.calories)} kcal`,
+        ),
+      )
+      item.appendChild(main)
+
+      const metadata = []
+      if (meal.storeName) {
+        metadata.push(createTextElement('span', '', `店名: ${meal.storeName}`))
+      }
+      if (meal.registeredAt && !Number.isNaN(Date.parse(meal.registeredAt))) {
+        const time = createTextElement(
+          'time',
+          '',
+          MEAL_CALENDAR_TIME_FORMAT.format(new Date(meal.registeredAt)),
+        )
+        time.dateTime = meal.registeredAt
+        metadata.push(time)
+      }
+      if (metadata.length) {
+        const meta = createTextElement('div', 'meal-calendar-food-meta')
+        meta.append(...metadata)
+        item.appendChild(meta)
+      }
+      foodList.appendChild(item)
+    })
   }
 
   saveAchievementData() {
@@ -1426,7 +1658,8 @@ class SpaceDebrisApp {
     const statisticsView = document.getElementById('statisticsView')
     const archiveOverlay = document.getElementById('encyclopediaOverlay')
     if (archiveOverlay?.classList.contains('is-open') && statisticsView && !statisticsView.hidden) {
-      this.renderCalorieTrendChart()
+      if (this.statisticsDisplayMode === 'calendar') this.renderMealCalendar()
+      else this.renderCalorieTrendChart()
     }
   }
 

@@ -766,6 +766,46 @@ canvas {
     font-size: 11px;
 }
 
+.statistics-chart-controls {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 8px;
+}
+
+.statistics-view-switch {
+    display: flex;
+    gap: 3px;
+    padding: 3px;
+    border: 1px solid #1e3b52;
+    border-radius: 9px;
+    background: #081322;
+}
+
+.statistics-view-button {
+    padding: 6px 9px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: #91a8bd;
+    font: inherit;
+    font-size: 12px;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.statistics-view-button:hover,
+.statistics-view-button.is-active {
+    border-color: #347b8e;
+    background: #103247;
+    color: #a7f2f4;
+}
+
+.statistics-view-button:focus-visible {
+    outline: 2px solid #55d9e8;
+    outline-offset: 2px;
+}
+
 .statistics-period-switch {
     display: flex;
     flex: 0 0 auto;
@@ -805,6 +845,14 @@ canvas {
     min-width: 0;
     min-height: 190px;
     padding: 8px 10px 6px;
+}
+
+.statistics-chart-view[hidden],
+.meal-calendar-view[hidden],
+#calorieTrendPeriods[hidden],
+.meal-calendar-food-list[hidden],
+.meal-calendar-empty[hidden] {
+    display: none;
 }
 
 .statistics-chart-wrap svg {
@@ -848,6 +896,260 @@ canvas {
     fill: #a6f5f3;
     stroke: #0a1626;
     stroke-width: 1.5;
+}
+
+.meal-calendar-view {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    padding: 8px;
+}
+
+.meal-calendar-layout {
+    display: grid;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    gap: 10px;
+}
+
+.meal-calendar,
+.meal-day-details {
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid #1b354b;
+    border-radius: 10px;
+    background: #0b1829;
+}
+
+.meal-calendar-header {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 7px;
+    border-bottom: 1px solid #1b354b;
+}
+
+.meal-calendar-month-controls {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 7px;
+}
+
+.meal-calendar-month-controls h3 {
+    min-width: 92px;
+    color: #dcecf7;
+    font-size: 13px;
+    text-align: center;
+}
+
+.meal-calendar-nav-button,
+.meal-calendar-today-button {
+    min-width: 30px;
+    min-height: 30px;
+    border: 1px solid #28485f;
+    border-radius: 7px;
+    background: #0c2032;
+    color: #b7d4e4;
+    font: inherit;
+    cursor: pointer;
+}
+
+.meal-calendar-nav-button {
+    font-size: 20px;
+    line-height: 1;
+}
+
+.meal-calendar-today-button {
+    padding: 4px 8px;
+    color: #9ce7c1;
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.meal-calendar-nav-button:hover:not(:disabled),
+.meal-calendar-today-button:hover:not(:disabled) {
+    border-color: #55d9e8;
+    background: #123247;
+}
+
+.meal-calendar-nav-button:disabled,
+.meal-calendar-today-button:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.meal-calendar-weekdays,
+.meal-calendar-days {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 3px;
+    padding-right: 6px;
+    padding-left: 6px;
+}
+
+.meal-calendar-weekdays {
+    flex: 0 0 auto;
+    padding-top: 6px;
+    padding-bottom: 4px;
+    color: #829db2;
+    font-size: 10px;
+    text-align: center;
+}
+
+.meal-calendar-days {
+    flex: 1 1 auto;
+    min-height: 0;
+    grid-template-rows: repeat(6, minmax(0, 1fr));
+    padding-bottom: 6px;
+}
+
+.meal-calendar-day,
+.meal-calendar-blank {
+    min-width: 0;
+    min-height: 0;
+}
+
+.meal-calendar-day {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 2px;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    background: #0d2032;
+    color: #c8dce9;
+    font: inherit;
+    cursor: pointer;
+}
+
+.meal-calendar-day:hover:not(:disabled) {
+    border-color: #4594a4;
+    background: #123247;
+}
+
+.meal-calendar-day.is-today {
+    border-color: #4a7390;
+}
+
+.meal-calendar-day.is-selected {
+    border-color: #55d9e8;
+    background: #123b50;
+    box-shadow: inset 0 0 0 1px #55d9e855;
+    color: #efffff;
+}
+
+.meal-calendar-day.has-meals:not(.is-selected) {
+    background: #102b3b;
+    color: #a7f2f4;
+}
+
+.meal-calendar-day:disabled {
+    border-color: transparent;
+    background: transparent;
+    color: #526779;
+    cursor: default;
+}
+
+.meal-calendar-day-number {
+    font-size: 12px;
+    line-height: 1;
+}
+
+.meal-calendar-day-total {
+    max-width: 100%;
+    overflow: hidden;
+    color: #82cfd7;
+    font-size: 8px;
+    line-height: 1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.meal-day-details-header {
+    flex: 0 0 auto;
+    padding: 10px;
+    border-bottom: 1px solid #1b354b;
+}
+
+.meal-day-details-header h3 {
+    color: #dcecf7;
+    font-size: 13px;
+}
+
+.meal-day-details-header p {
+    margin-top: 4px;
+    color: #9ce7c1;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.meal-calendar-empty {
+    margin: auto;
+    padding: 12px;
+    color: #91a8bd;
+    font-size: 12px;
+    text-align: center;
+}
+
+.meal-calendar-food-list {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+    gap: 6px;
+    overflow-y: auto;
+    padding: 7px;
+    overscroll-behavior: contain;
+    scrollbar-color: #315c73 #0a1626;
+    scrollbar-width: thin;
+}
+
+.meal-calendar-food-item {
+    flex: 0 0 auto;
+    padding: 8px;
+    border: 1px solid #1b3a51;
+    border-radius: 8px;
+    background: #0a1626;
+}
+
+.meal-calendar-food-main,
+.meal-calendar-food-meta {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.meal-calendar-food-name {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    color: #dcecf7;
+    font-size: 12px;
+}
+
+.meal-calendar-food-calories {
+    flex: 0 0 auto;
+    color: #8de4ec;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.meal-calendar-food-meta {
+    flex-wrap: wrap;
+    margin-top: 4px;
+    color: #829db2;
+    font-size: 10px;
 }
 
 .achievement-toolbar,
@@ -1722,6 +2024,12 @@ canvas {
         grid-template-columns: minmax(0, 1fr);
     }
 
+    .meal-calendar-layout {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(245px, 1.1fr) minmax(85px, 0.9fr);
+        gap: 7px;
+    }
+
     .encyclopedia-tab {
         flex: 1 1 0;
         padding: 8px 5px;
@@ -1928,12 +2236,28 @@ canvas {
     }
 
     .statistics-chart-header {
+        align-items: stretch;
+        flex-direction: column;
         gap: 7px;
         padding: 9px;
     }
 
     .statistics-chart-header h2 {
         font-size: 13px;
+    }
+
+    .statistics-chart-controls {
+        justify-content: space-between;
+        gap: 5px;
+    }
+
+    .statistics-view-switch {
+        gap: 1px;
+    }
+
+    .statistics-view-button {
+        padding: 6px;
+        font-size: 11px;
     }
 
     .statistics-period-switch {
@@ -1949,6 +2273,39 @@ canvas {
     .statistics-chart-wrap {
         min-height: 170px;
         padding: 5px;
+    }
+
+    .meal-calendar-view {
+        padding: 5px;
+    }
+
+    .meal-calendar-layout {
+        grid-template-rows: minmax(235px, 1.1fr) minmax(75px, 0.9fr);
+        gap: 5px;
+    }
+
+    .meal-calendar-header {
+        padding: 5px;
+    }
+
+    .meal-calendar-month-controls {
+        gap: 4px;
+    }
+
+    .meal-calendar-month-controls h3 {
+        min-width: 84px;
+        font-size: 12px;
+    }
+
+    .meal-calendar-weekdays,
+    .meal-calendar-days {
+        gap: 2px;
+        padding-right: 4px;
+        padding-left: 4px;
+    }
+
+    .meal-calendar-day-total {
+        font-size: 7px;
     }
 
     .achievement-grid {
