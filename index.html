@@ -15,6 +15,9 @@
             <button type="button" class="achievements-open-button" id="achievementsOpenButton" aria-haspopup="dialog" aria-controls="encyclopediaOverlay">
                 🏆 実績
             </button>
+            <button type="button" class="statistics-open-button" id="statisticsOpenButton" aria-haspopup="dialog" aria-controls="encyclopediaOverlay">
+                📊 統計
+            </button>
         </div>
         <aside class="input-panel" id="inputPanel" aria-label="食べ物登録フォーム">
             <button type="button" class="panel-handle" id="inputPanelHandle" aria-expanded="false" aria-controls="inputPanelBody">
@@ -73,7 +76,7 @@
                     <nav class="encyclopedia-tabs" aria-label="図鑑メニュー">
                         <button type="button" class="encyclopedia-tab is-active" data-archive-view="encyclopedia" aria-current="page">✧ 図鑑</button>
                         <button type="button" class="encyclopedia-tab" data-archive-view="achievements">♧ 実績</button>
-                        <button type="button" class="encyclopedia-tab" disabled>◷ 統計</button>
+                        <button type="button" class="encyclopedia-tab" data-archive-view="statistics">◷ 統計</button>
                     </nav>
                     <button type="button" class="encyclopedia-close-button" id="encyclopediaCloseButton" aria-label="図鑑を閉じる">×</button>
                 </header>
@@ -115,6 +118,56 @@
                         <div class="achievement-grid" id="achievementGrid" aria-label="実績一覧"></div>
                     </section>
                     <p class="achievement-note">※ 未取得の実績は、内容の一部が隠されています。実績を獲得すると詳細が解放されます。</p>
+                </main>
+                <main class="statistics-content" id="statisticsView" aria-label="統計" hidden>
+                    <section class="statistics-summary" aria-label="生涯統計">
+                        <article class="statistics-card">
+                            <span class="statistics-icon" aria-hidden="true">🔥</span>
+                            <div class="statistics-card-copy">
+                                <h2>累計カロリー</h2>
+                                <p id="lifetimeCaloriesValue" aria-live="polite">0 kcal</p>
+                            </div>
+                        </article>
+                        <article class="statistics-card">
+                            <span class="statistics-icon" aria-hidden="true">🍽️</span>
+                            <div class="statistics-card-copy">
+                                <h2>食事登録数</h2>
+                                <p id="lifetimeRegistrationCountValue" aria-live="polite">0 件</p>
+                            </div>
+                        </article>
+                        <article class="statistics-card">
+                            <span class="statistics-icon" aria-hidden="true">🌌</span>
+                            <div class="statistics-card-copy">
+                                <h2>育成天体数</h2>
+                                <p id="lifetimeCelestialBodyCountValue" aria-live="polite">0 個</p>
+                            </div>
+                        </article>
+                        <article class="statistics-card">
+                            <span class="statistics-icon" aria-hidden="true">📅</span>
+                            <div class="statistics-card-copy">
+                                <h2>記録した日数</h2>
+                                <p id="recordedDaysValue" aria-live="polite">0 日</p>
+                            </div>
+                        </article>
+                    </section>
+                    <div class="statistics-detail-layout">
+                        <section class="statistics-chart-panel" aria-labelledby="calorieTrendHeading">
+                            <header class="statistics-chart-header">
+                                <div>
+                                    <h2 id="calorieTrendHeading">カロリー推移</h2>
+                                    <p>日ごとの摂取カロリー</p>
+                                </div>
+                                <div class="statistics-period-switch" role="group" aria-label="グラフの期間">
+                                    <button type="button" class="statistics-period-button is-active" data-calorie-period="7d" aria-pressed="true">7日</button>
+                                    <button type="button" class="statistics-period-button" data-calorie-period="30d" aria-pressed="false">30日</button>
+                                    <button type="button" class="statistics-period-button" data-calorie-period="1y" aria-pressed="false">1年</button>
+                                </div>
+                            </header>
+                            <div class="statistics-chart-wrap">
+                                <svg id="calorieTrendChart" role="img" aria-label="日別カロリー推移グラフ"></svg>
+                            </div>
+                        </section>
+                    </div>
                 </main>
                 <section class="achievement-detail-overlay" id="achievementDetailOverlay" role="dialog" aria-modal="true" aria-labelledby="achievementDetailHeading" aria-hidden="true" inert>
                     <article class="achievement-detail-card">

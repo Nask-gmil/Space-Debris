@@ -10,10 +10,11 @@ import { Constants } from './utils/constants.js'
 import { CELESTIAL_BODIES } from './data/celestialBodies.js'
 import { CELESTIAL_BODY_DETAILS } from './data/celestialBodyDetails.js'
 import { ACHIEVEMENTS } from './data/achievements.js'
+import { createDailyCalorieSeries } from './data/calorieTrend.js'
 import {
   loadAchievementRecords as loadStoredAchievementRecords,
   recordAchievementUnlock,
-  recordCreatedGenre,
+  recordCelestialBodyCreated,
   recordFoodEdit,
   recordFoodRegistration,
   recordGenreEvolutionStage,
@@ -23,6 +24,36 @@ import {
 
 const DEFAULT_INFO_TEXT = '星を選択してください'
 const ORBIT_MARGIN = 6 // 星と星の間に確保する余白。後で調整しやすいように定数化。
+const STAT_NUMBER_FORMAT = new Intl.NumberFormat('ja-JP')
+const CALORIE_TREND_PERIOD_LABELS = {
+  '7d': '7日',
+  '30d': '30日',
+  '1y': '1年',
+}
+const CHART_TICK_DATE_FORMAT = new Intl.DateTimeFormat('ja-JP', {
+  timeZone: 'UTC',
+  month: 'numeric',
+  day: 'numeric',
+})
+const CHART_YEAR_TICK_DATE_FORMAT = new Intl.DateTimeFormat('ja-JP', {
+  timeZone: 'UTC',
+  year: '2-digit',
+  month: 'numeric',
+})
+const CHART_TOOLTIP_DATE_FORMAT = new Intl.DateTimeFormat('ja-JP', {
+  timeZone: 'UTC',
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
+})
+const SVG_NAMESPACE = 'http://www.w3.org/2000/svg'
+const createSvgElement = (name, attributes = {}) => {
+  const element = document.createElementNS(SVG_NAMESPACE, name)
+  Object.entries(attributes).forEach(([attribute, value]) => {
+    element.setAttribute(attribute, String(value))
+  })
+  return element
+}
 
 const LOCAL_STORAGE_KEY = 'spaceDebrisAppData'
 
@@ -211,6 +242,7 @@ class SpaceDebrisApp {
     this.infoPanelMode = 'normal'
     // 現在編集中の食事データのID。編集モードでなければ null。
     this.editingFoodId = null
+    this.calorieTrendPeriod = '7d'
     this.setInfoPanelDefault()
     this.setupManagers()
     this.setupUniverse()
@@ -245,17 +277,21 @@ class SpaceDebrisApp {
     const encyclopediaOverlay = document.getElementById('encyclopediaOverlay')
     const encyclopediaOpenButton = document.getElementById('encyclopediaOpenButton')
     const achievementsOpenButton = document.getElementById('achievementsOpenButton')
+    const statisticsOpenButton = document.getElementById('statisticsOpenButton')
     const encyclopediaCloseButton = document.getElementById('encyclopediaCloseButton')
     const archiveTabs = document.querySelectorAll('.encyclopedia-tab[data-archive-view]')
     let lastArchiveTrigger = encyclopediaOpenButton
     const setArchiveView = (view) => {
-      const encyclopediaView = document.querySelector('.encyclopedia-content')
-      const achievementView = document.getElementById('achievementView')
-      if (!encyclopediaView || !achievementView) return
+      const archiveViews = {
+        encyclopedia: document.querySelector('.encyclopedia-content'),
+        achievements: document.getElementById('achievementView'),
+        statistics: document.getElementById('statisticsView'),
+      }
+      if (!archiveViews[view]) return
 
-      const showingAchievements = view === 'achievements'
-      encyclopediaView.hidden = showingAchievements
-      achievementView.hidden = !showingAchievements
+      Object.entries(archiveViews).forEach(([viewName, element]) => {
+        if (element) element.hidden = viewName !== view
+      })
       archiveTabs.forEach((tab) => {
         const isActive = tab.dataset.archiveView === view
         tab.classList.toggle('is-active', isActive)
@@ -266,14 +302,17 @@ class SpaceDebrisApp {
         }
       })
       this.closeAchievementDetail(false)
+      if (view === 'statistics') this.refreshStatisticsDisplay()
     }
     const setEncyclopediaOpen = (isOpen) => {
       if (!encyclopediaOverlay) return
       encyclopediaOverlay.classList.toggle('is-open', isOpen)
       encyclopediaOverlay.setAttribute('aria-hidden', String(!isOpen))
       encyclopediaOverlay.inert = !isOpen
-      if (encyclopediaOpenButton) encyclopediaOpenButton.setAttribute('aria-expanded', String(isOpen))
-      if (achievementsOpenButton) achievementsOpenButton.setAttribute('aria-expanded', String(isOpen))
+      const archiveOpenButtons = [encyclopediaOpenButton, achievementsOpenButton, statisticsOpenButton]
+      archiveOpenButtons.forEach((button) => {
+        if (button) button.setAttribute('aria-expanded', String(isOpen))
+      })
       if (!isOpen) this.closeAchievementDetail(false)
       if (isOpen) {
         encyclopediaCloseButton?.focus()
@@ -292,9 +331,22 @@ class SpaceDebrisApp {
       setArchiveView('achievements')
       setEncyclopediaOpen(true)
     })
+    statisticsOpenButton?.addEventListener('click', () => {
+      lastArchiveTrigger = statisticsOpenButton
+      setArchiveView('statistics')
+      setEncyclopediaOpen(true)
+    })
     encyclopediaCloseButton?.addEventListener('click', () => setEncyclopediaOpen(false))
     archiveTabs.forEach((tab) => {
       tab.addEventListener('click', () => setArchiveView(tab.dataset.archiveView))
+    })
+    document.querySelectorAll('[data-calorie-period]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const period = button.dataset.caloriePeriod
+        if (!CALORIE_TREND_PERIOD_LABELS[period]) return
+        this.calorieTrendPeriod = period
+        this.renderCalorieTrendChart()
+      })
     })
     window.addEventListener('keydown', (event) => {
       if (event.key === 'Escape' && encyclopediaOverlay?.classList.contains('is-open')) {
@@ -769,7 +821,11 @@ class SpaceDebrisApp {
     this.updateOrbitSpacing()
 
     const foodEntry = targetStar.addFoodEntry(foodName, calories, storeName)
-    this.achievementRecords = recordFoodRegistration(this.achievementRecords, foodEntry)
+    this.achievementRecords = recordFoodRegistration(
+      this.achievementRecords,
+      foodEntry,
+      targetStar.data.genre,
+    )
     const evolvedStage = targetStar.getEvolutionStage()
     this.achievementRecords = recordGenreEvolutionStage(
       this.achievementRecords,
@@ -1036,6 +1092,160 @@ class SpaceDebrisApp {
     this.canPersistAchievementData = loaded.canPersist
   }
 
+  refreshStatisticsDisplay() {
+    const stars = this.universe.getStarManager().getAllStars().map((star) => star.data)
+    const loaded = loadStoredAchievementRecords(localStorage, stars)
+    this.achievementRecords = loaded.records
+    this.canPersistAchievementData = loaded.canPersist
+
+    const records = this.achievementRecords
+    const values = {
+      lifetimeCaloriesValue: `${STAT_NUMBER_FORMAT.format(records.lifetimeCalories)} kcal`,
+      lifetimeRegistrationCountValue: `${STAT_NUMBER_FORMAT.format(records.lifetimeRegistrationCount)} 件`,
+      lifetimeCelestialBodyCountValue: `${STAT_NUMBER_FORMAT.format(records.lifetimeCelestialBodyCount)} 個`,
+      recordedDaysValue: `${STAT_NUMBER_FORMAT.format(records.registrationDates.length)} 日`,
+    }
+    Object.entries(values).forEach(([id, value]) => {
+      const element = document.getElementById(id)
+      if (element) element.textContent = value
+    })
+    this.renderCalorieTrendChart()
+  }
+
+  renderCalorieTrendChart() {
+    const svg = document.getElementById('calorieTrendChart')
+    if (!svg || !this.achievementRecords) return
+
+    document.querySelectorAll('[data-calorie-period]').forEach((button) => {
+      const isActive = button.dataset.caloriePeriod === this.calorieTrendPeriod
+      button.classList.toggle('is-active', isActive)
+      button.setAttribute('aria-pressed', String(isActive))
+    })
+
+    const series = createDailyCalorieSeries(
+      this.achievementRecords.processedFoodEntries,
+      this.calorieTrendPeriod,
+      new Date(),
+    )
+    const bounds = svg.getBoundingClientRect()
+    const width = Math.max(280, Math.floor(bounds.width))
+    const height = Math.max(210, Math.floor(bounds.height))
+    const margin = { top: 16, right: 12, bottom: 52, left: 58 }
+    const plotWidth = width - margin.left - margin.right
+    const plotHeight = height - margin.top - margin.bottom
+    const baseline = margin.top + plotHeight
+    const maxCalories = series.reduce((max, point) => Math.max(max, point.calories), 0)
+    const roughStep = Math.max(maxCalories, 100) / 4
+    const magnitude = 10 ** Math.floor(Math.log10(roughStep))
+    const normalizedStep = roughStep / magnitude
+    const stepMultiplier = normalizedStep <= 1 ? 1 : normalizedStep <= 2 ? 2 : normalizedStep <= 5 ? 5 : 10
+    const tickStep = stepMultiplier * magnitude
+    const maxY = tickStep * 4
+    const xForIndex = (index) => margin.left + (index / Math.max(series.length - 1, 1)) * plotWidth
+    const yForCalories = (calories) => baseline - (calories / maxY) * plotHeight
+
+    svg.replaceChildren()
+    svg.setAttribute('viewBox', `0 0 ${width} ${height}`)
+    svg.setAttribute(
+      'aria-label',
+      `${CALORIE_TREND_PERIOD_LABELS[this.calorieTrendPeriod]}の日別カロリー推移。縦軸はkcal、横軸は日付です。各点にカーソルを合わせると詳細を確認できます。`,
+    )
+    const svgTitle = createSvgElement('title')
+    svgTitle.textContent = '日別カロリー推移'
+    svg.appendChild(svgTitle)
+
+    for (let tick = 0; tick <= 4; tick += 1) {
+      const calories = tick * tickStep
+      const y = yForCalories(calories)
+      svg.appendChild(createSvgElement('line', {
+        x1: margin.left,
+        y1: y,
+        x2: width - margin.right,
+        y2: y,
+        class: 'calorie-chart-gridline',
+      }))
+      const label = createSvgElement('text', {
+        x: margin.left - 9,
+        y: y + 4,
+        'text-anchor': 'end',
+        class: 'calorie-chart-axis',
+      })
+      label.textContent = STAT_NUMBER_FORMAT.format(calories)
+      svg.appendChild(label)
+    }
+
+    const points = series.map((point, index) => ({
+      ...point,
+      x: xForIndex(index),
+      y: yForCalories(point.calories),
+    }))
+    const linePath = points.map((point, index) =>
+      `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ')
+    const areaPath = `${linePath} L ${points[points.length - 1].x} ${baseline} L ${points[0].x} ${baseline} Z`
+    svg.appendChild(createSvgElement('path', {
+      d: areaPath,
+      class: 'calorie-chart-area',
+    }))
+    svg.appendChild(createSvgElement('path', {
+      d: linePath,
+      class: 'calorie-chart-line',
+    }))
+
+    points.forEach((point) => {
+      const circle = createSvgElement('circle', {
+        cx: point.x,
+        cy: point.y,
+        r: point.calories > 0 ? 3.5 : 2,
+        class: 'calorie-chart-point',
+      })
+      const pointTitle = createSvgElement('title')
+      pointTitle.textContent = `${CHART_TOOLTIP_DATE_FORMAT.format(new Date(`${point.date}T00:00:00.000Z`))}: ${STAT_NUMBER_FORMAT.format(point.calories)} kcal`
+      circle.appendChild(pointTitle)
+      svg.appendChild(circle)
+    })
+
+    const desiredLabelCount = this.calorieTrendPeriod === '30d'
+      ? 6
+      : this.calorieTrendPeriod === '1y'
+        ? 5
+        : 7
+    const labelCount = Math.min(series.length, desiredLabelCount)
+    for (let tick = 0; tick < labelCount; tick += 1) {
+      const index = Math.round(tick * (series.length - 1) / Math.max(labelCount - 1, 1))
+      const point = points[index]
+      const label = createSvgElement('text', {
+        x: point.x,
+        y: baseline + 20,
+        'text-anchor': 'middle',
+        class: 'calorie-chart-axis',
+      })
+      const date = new Date(`${point.date}T00:00:00.000Z`)
+      label.textContent = this.calorieTrendPeriod === '1y'
+        ? CHART_YEAR_TICK_DATE_FORMAT.format(date)
+        : CHART_TICK_DATE_FORMAT.format(date)
+      svg.appendChild(label)
+    }
+
+    const yAxisTitle = createSvgElement('text', {
+      x: 15,
+      y: margin.top + plotHeight / 2,
+      transform: `rotate(-90 15 ${margin.top + plotHeight / 2})`,
+      'text-anchor': 'middle',
+      class: 'calorie-chart-axis-title',
+    })
+    yAxisTitle.textContent = 'kcal'
+    svg.appendChild(yAxisTitle)
+
+    const xAxisTitle = createSvgElement('text', {
+      x: margin.left + plotWidth / 2,
+      y: height - 3,
+      'text-anchor': 'middle',
+      class: 'calorie-chart-axis-title',
+    })
+    xAxisTitle.textContent = '日付'
+    svg.appendChild(xAxisTitle)
+  }
+
   saveAchievementData() {
     if (!this.canPersistAchievementData) return
     persistAchievementRecords(localStorage, this.achievementRecords)
@@ -1182,7 +1392,7 @@ class SpaceDebrisApp {
 
     star.setMesh(sphere.getMesh())
     this.universe.getStarManager().addStar(star)
-    this.achievementRecords = recordCreatedGenre(this.achievementRecords, genre)
+    this.achievementRecords = recordCelestialBodyCreated(this.achievementRecords, genre)
 
     return star
   }
@@ -1213,6 +1423,11 @@ class SpaceDebrisApp {
 
     this.cameraManager.updateAspect(width / height)
     this.rendererManager.setSize(width, height)
+    const statisticsView = document.getElementById('statisticsView')
+    const archiveOverlay = document.getElementById('encyclopediaOverlay')
+    if (archiveOverlay?.classList.contains('is-open') && statisticsView && !statisticsView.hidden) {
+      this.renderCalorieTrendChart()
+    }
   }
 
   animate() {
@@ -1598,7 +1813,18 @@ class SpaceDebrisApp {
 
     // 新しいオブジェクトや配列を作らず、既存の entry を直接書き換える。
     // ジャンルはここでは変更しない(別ジャンルにしたい場合は新規登録で対応する運用のため)。
-    this.achievementRecords = recordFoodEdit(this.achievementRecords, entry.id, previousCalories, calories)
+    this.achievementRecords = recordFoodEdit(
+      this.achievementRecords,
+      entry.id,
+      previousCalories,
+      calories,
+      {
+        name: foodName,
+        storeName,
+        registeredAt: entry.registeredAt,
+        genre: star.data.genre,
+      },
+    )
     entry.name = foodName
     entry.storeName = storeName
     entry.calories = calories

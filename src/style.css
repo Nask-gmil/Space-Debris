@@ -88,7 +88,8 @@ canvas {
 }
 
 .encyclopedia-open-button,
-.achievements-open-button {
+.achievements-open-button,
+.statistics-open-button {
     padding: 9px 16px;
     border: 1px solid #2d7187;
     border-radius: 10px;
@@ -108,8 +109,15 @@ canvas {
     color: #9ce7c1;
 }
 
+.statistics-open-button {
+    border-color: #65578b;
+    background: rgba(25, 24, 45, 0.94);
+    color: #d3c3ff;
+}
+
 .encyclopedia-open-button:hover,
 .achievements-open-button:hover,
+.statistics-open-button:hover,
 .encyclopedia-close-button:hover,
 .encyclopedia-tab:not(:disabled):hover {
     border-color: #55d9e8;
@@ -244,7 +252,8 @@ canvas {
 }
 
 .encyclopedia-content[hidden],
-.achievement-content[hidden] {
+.achievement-content[hidden],
+.statistics-content[hidden] {
     display: none;
 }
 
@@ -651,6 +660,194 @@ canvas {
     gap: 12px;
     overflow: hidden;
     padding: 14px 16px 10px;
+}
+
+.statistics-content {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    flex-direction: column;
+    gap: 12px;
+    overflow: hidden;
+    padding: 16px;
+}
+
+.statistics-summary {
+    display: grid;
+    flex: 0 0 auto;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.statistics-card {
+    display: flex;
+    min-width: 0;
+    min-height: 106px;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid #1d435b;
+    border-radius: 12px;
+    background: linear-gradient(145deg, #10243a, #0b1b2d);
+    box-shadow: inset 0 1px #ffffff08;
+}
+
+.statistics-icon {
+    display: grid;
+    flex: 0 0 46px;
+    width: 46px;
+    height: 46px;
+    place-items: center;
+    border: 1px solid #2e6278;
+    border-radius: 14px;
+    background: #102d42;
+    font-size: 23px;
+}
+
+.statistics-card-copy {
+    min-width: 0;
+}
+
+.statistics-card h2 {
+    color: #91aabd;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.4;
+}
+
+.statistics-card p {
+    margin-top: 6px;
+    color: #e7f6ff;
+    font-size: clamp(18px, 2vw, 26px);
+    font-weight: 700;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+}
+
+.statistics-detail-layout {
+    display: grid;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    gap: 12px;
+}
+
+.statistics-chart-panel {
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid #1c4057;
+    border-radius: 12px;
+    background: #0a1626;
+}
+
+.statistics-chart-header {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    border-bottom: 1px solid #1b354b;
+}
+
+.statistics-chart-header h2 {
+    color: #b9d7e9;
+    font-size: 15px;
+}
+
+.statistics-chart-header p {
+    margin-top: 3px;
+    color: #829db2;
+    font-size: 11px;
+}
+
+.statistics-period-switch {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 5px;
+    padding: 3px;
+    border: 1px solid #1e3b52;
+    border-radius: 9px;
+    background: #081322;
+}
+
+.statistics-period-button {
+    min-width: 48px;
+    padding: 6px 9px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: #91a8bd;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.statistics-period-button:hover,
+.statistics-period-button.is-active {
+    border-color: #347b8e;
+    background: #103247;
+    color: #a7f2f4;
+}
+
+.statistics-period-button:focus-visible {
+    outline: 2px solid #55d9e8;
+    outline-offset: 2px;
+}
+
+.statistics-chart-wrap {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 190px;
+    padding: 8px 10px 6px;
+}
+
+.statistics-chart-wrap svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+
+.calorie-chart-gridline {
+    stroke: #1d3448;
+    stroke-width: 1;
+}
+
+.calorie-chart-axis {
+    fill: #839caf;
+    font-family: inherit;
+    font-size: 12px;
+}
+
+.calorie-chart-axis-title {
+    fill: #9ab3c5;
+    font-family: inherit;
+    font-size: 13px;
+}
+
+.calorie-chart-area {
+    fill: #37c4d6;
+    fill-opacity: 0.13;
+}
+
+.calorie-chart-line {
+    fill: none;
+    stroke: #55d9e8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2.5;
+}
+
+.calorie-chart-point {
+    fill: #a6f5f3;
+    stroke: #0a1626;
+    stroke-width: 1.5;
 }
 
 .achievement-toolbar,
@@ -1517,6 +1714,14 @@ canvas {
         padding: 10px;
     }
 
+    .statistics-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .statistics-detail-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
     .encyclopedia-tab {
         flex: 1 1 0;
         padding: 8px 5px;
@@ -1670,7 +1875,8 @@ canvas {
     }
 
     .encyclopedia-open-button,
-    .achievements-open-button {
+    .achievements-open-button,
+    .statistics-open-button {
         padding: 8px 10px;
         font-size: 13px;
     }
@@ -1688,6 +1894,61 @@ canvas {
     .achievement-content {
         gap: 8px;
         padding: 9px;
+    }
+
+    .statistics-content {
+        padding: 9px;
+    }
+
+    .statistics-summary {
+        gap: 8px;
+    }
+
+    .statistics-card {
+        min-height: 88px;
+        gap: 8px;
+        padding: 10px;
+    }
+
+    .statistics-icon {
+        flex-basis: 36px;
+        width: 36px;
+        height: 36px;
+        border-radius: 11px;
+        font-size: 19px;
+    }
+
+    .statistics-card h2 {
+        font-size: 11px;
+    }
+
+    .statistics-card p {
+        margin-top: 4px;
+        font-size: 18px;
+    }
+
+    .statistics-chart-header {
+        gap: 7px;
+        padding: 9px;
+    }
+
+    .statistics-chart-header h2 {
+        font-size: 13px;
+    }
+
+    .statistics-period-switch {
+        gap: 2px;
+    }
+
+    .statistics-period-button {
+        min-width: 42px;
+        padding: 6px;
+        font-size: 11px;
+    }
+
+    .statistics-chart-wrap {
+        min-height: 170px;
+        padding: 5px;
     }
 
     .achievement-grid {

@@ -1,7 +1,7 @@
 import { Constants } from '../utils/constants.js'
 
 export const ACHIEVEMENT_STORAGE_KEY = 'spaceDebrisAchievementData'
-export const ACHIEVEMENT_DATA_VERSION = 2
+export const ACHIEVEMENT_DATA_VERSION = 3
 
 const TOKYO_TIME_ZONE = 'Asia/Tokyo'
 const datePartsFormatter = new Intl.DateTimeFormat('en', {
@@ -27,6 +27,16 @@ const getLegacyFoodCalories = (food) => {
   const calories = Number(food?.calories)
   return Number.isFinite(calories) && calories >= 0 ? calories : 0
 }
+
+const createFoodHistoryEntry = (food, id, genre, genreStatsEligible) => ({
+  id,
+  calories: getLegacyFoodCalories(food),
+  registeredAt: typeof food?.registeredAt === 'string' ? food.registeredAt : null,
+  name: typeof food?.name === 'string' ? food.name : null,
+  storeName: typeof food?.storeName === 'string' ? food.storeName : null,
+  genre: typeof genre === 'string' && genre.trim() ? genre.trim() : null,
+  genreStatsEligible,
+})
 
 const addRegistrationDate = (dates, registeredAt) => {
   const date = getJapanDateKey(registeredAt)
@@ -73,14 +83,19 @@ export function createInitialAchievementRecords(stars = []) {
   const processedFoodEntries = {}
   let registrationDates = []
 
-  foods.forEach((food) => {
-    if (typeof food.id === 'string' && food.id) {
-      processedFoodEntries[food.id] = {
-        calories: getLegacyFoodCalories(food),
-        registeredAt: typeof food.registeredAt === 'string' ? food.registeredAt : null,
+  safeStars.forEach((star) => {
+    const starFoods = Array.isArray(star?.foods) ? star.foods : []
+    starFoods.forEach((food) => {
+      if (typeof food?.id === 'string' && food.id) {
+        processedFoodEntries[food.id] = createFoodHistoryEntry(
+          food,
+          food.id,
+          star?.genre,
+          false,
+        )
       }
-    }
-    registrationDates = addRegistrationDate(registrationDates, food.registeredAt)
+      registrationDates = addRegistrationDate(registrationDates, food?.registeredAt)
+    })
   })
 
   const createdGenres = safeStars.reduce(
@@ -117,6 +132,8 @@ export function createInitialAchievementRecords(stars = []) {
     version: ACHIEVEMENT_DATA_VERSION,
     lifetimeRegistrationCount: foods.length,
     lifetimeCalories,
+    lifetimeCaloriesByGenre: {},
+    lifetimeCelestialBodyCount: safeStars.length,
     registrationDates,
     createdGenres,
     highestEvolutionStage,
@@ -133,8 +150,16 @@ export function normalizeAchievementRecords(value) {
   if (value.version === 1) {
     value = {
       ...value,
-      version: ACHIEVEMENT_DATA_VERSION,
+      version: 2,
       highestEvolutionStages: value.highestEvolutionStages ?? {},
+    }
+  }
+  if (value.version === 2) {
+    value = {
+      ...value,
+      version: ACHIEVEMENT_DATA_VERSION,
+      lifetimeCaloriesByGenre: {},
+      lifetimeCelestialBodyCount: 0,
     }
   }
   if (value.version !== ACHIEVEMENT_DATA_VERSION) {
@@ -143,6 +168,9 @@ export function normalizeAchievementRecords(value) {
 
   if (!Array.isArray(value.registrationDates) ||
       !Array.isArray(value.createdGenres) ||
+      !value.lifetimeCaloriesByGenre ||
+      typeof value.lifetimeCaloriesByGenre !== 'object' ||
+      Array.isArray(value.lifetimeCaloriesByGenre) ||
       !value.unlockedAchievements ||
       typeof value.unlockedAchievements !== 'object' ||
       Array.isArray(value.unlockedAchievements) ||
@@ -173,14 +201,32 @@ export function normalizeAchievementRecords(value) {
     })
   })
 
+  const lifetimeCaloriesByGenre = {}
+  Object.entries(value.lifetimeCaloriesByGenre).forEach(([genre, calories]) => {
+    if (!genre.trim()) {
+      throw new TypeError('Achievement data contains an invalid genre calorie total')
+    }
+    Object.defineProperty(lifetimeCaloriesByGenre, genre, {
+      value: toNonNegativeNumber(calories, 'genre lifetime calories'),
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    })
+  })
+
   const processedFoodEntries = {}
   Object.entries(value.processedFoodEntries).forEach(([id, entry]) => {
     if (!id || !entry || typeof entry !== 'object') {
       throw new TypeError('Achievement data contains an invalid processed food entry')
     }
     processedFoodEntries[id] = {
+      id: typeof entry.id === 'string' && entry.id ? entry.id : id,
       calories: toNonNegativeNumber(entry.calories, 'processed food calories'),
       registeredAt: typeof entry.registeredAt === 'string' ? entry.registeredAt : null,
+      name: typeof entry.name === 'string' ? entry.name : null,
+      storeName: typeof entry.storeName === 'string' ? entry.storeName : null,
+      genre: typeof entry.genre === 'string' && entry.genre.trim() ? entry.genre.trim() : null,
+      genreStatsEligible: entry.genreStatsEligible === true,
     }
   })
 
@@ -206,6 +252,11 @@ export function normalizeAchievementRecords(value) {
     version: ACHIEVEMENT_DATA_VERSION,
     lifetimeRegistrationCount: toNonNegativeNumber(value.lifetimeRegistrationCount, 'lifetime registration count'),
     lifetimeCalories: toNonNegativeNumber(value.lifetimeCalories, 'lifetime calories'),
+    lifetimeCaloriesByGenre,
+    lifetimeCelestialBodyCount: toNonNegativeNumber(
+      value.lifetimeCelestialBodyCount,
+      'lifetime celestial body count',
+    ),
     registrationDates: registrationDates.sort(),
     createdGenres,
     highestEvolutionStage,
@@ -215,7 +266,29 @@ export function normalizeAchievementRecords(value) {
   }
 }
 
-export function recordFoodRegistration(records, foodEntry) {
+const updateGenreLifetimeCalories = (records, genre, delta) => {
+  if (delta === 0 || typeof genre !== 'string' || !genre.trim()) {
+    return records.lifetimeCaloriesByGenre
+  }
+
+  const canonicalGenre = getCanonicalGenre(records.createdGenres, genre)
+  if (!canonicalGenre) return records.lifetimeCaloriesByGenre
+
+  const existingKey = Object.keys(records.lifetimeCaloriesByGenre).find(
+    (key) => key.toLowerCase() === canonicalGenre.toLowerCase()
+  )
+  const key = existingKey || canonicalGenre
+  const currentCalories = records.lifetimeCaloriesByGenre[key] || 0
+  const nextCalories = Math.max(0, currentCalories + delta)
+  const updatedTotals = new Map(Object.entries(records.lifetimeCaloriesByGenre))
+
+  if (nextCalories === 0) updatedTotals.delete(key)
+  else updatedTotals.set(key, nextCalories)
+
+  return Object.fromEntries(updatedTotals)
+}
+
+export function recordFoodRegistration(records, foodEntry, genre = foodEntry?.genre) {
   if (!foodEntry || typeof foodEntry.id !== 'string' || !foodEntry.id) {
     throw new TypeError('A food entry ID is required to record a registration')
   }
@@ -226,45 +299,83 @@ export function recordFoodRegistration(records, foodEntry) {
   if (!registeredDate) throw new TypeError('A valid registration timestamp is required')
 
   const previousEntry = records.processedFoodEntries[foodEntry.id]
+  const effectiveGenre = genre || previousEntry?.genre || null
+  const genreStatsEligible = previousEntry
+    ? previousEntry.genreStatsEligible === true
+    : typeof effectiveGenre === 'string' && Boolean(effectiveGenre.trim())
+  const delta = previousEntry ? calories - previousEntry.calories : calories
+  const recordsWithGenre = recordCreatedGenre(records, effectiveGenre)
+  const entryForHistory = {
+    ...foodEntry,
+    registeredAt: previousEntry?.registeredAt || registeredAt,
+  }
+  const processedFoodEntry = createFoodHistoryEntry(
+    entryForHistory,
+    foodEntry.id,
+    effectiveGenre,
+    genreStatsEligible,
+  )
   const processedFoodEntries = {
-    ...records.processedFoodEntries,
-    [foodEntry.id]: { calories, registeredAt },
+    ...recordsWithGenre.processedFoodEntries,
+    [foodEntry.id]: processedFoodEntry,
   }
-
-  if (previousEntry) {
-    return {
-      ...records,
-      lifetimeCalories: Math.max(0, records.lifetimeCalories + calories - previousEntry.calories),
-      processedFoodEntries,
-    }
-  }
+  const lifetimeCaloriesByGenre = genreStatsEligible
+    ? updateGenreLifetimeCalories(recordsWithGenre, effectiveGenre, delta)
+    : recordsWithGenre.lifetimeCaloriesByGenre
 
   return {
-    ...records,
-    lifetimeRegistrationCount: records.lifetimeRegistrationCount + 1,
-    lifetimeCalories: records.lifetimeCalories + calories,
+    ...recordsWithGenre,
+    lifetimeRegistrationCount: previousEntry
+      ? records.lifetimeRegistrationCount
+      : records.lifetimeRegistrationCount + 1,
+    lifetimeCalories: Math.max(0, records.lifetimeCalories + delta),
+    lifetimeCaloriesByGenre,
     registrationDates: addRegistrationDate(records.registrationDates, registeredAt),
     processedFoodEntries,
   }
 }
 
-export function recordFoodEdit(records, foodId, previousCalories, nextCalories) {
+export function recordFoodEdit(records, foodId, previousCalories, nextCalories, foodDetails = {}) {
   if (typeof foodId !== 'string' || !foodId) throw new TypeError('A food entry ID is required to record an edit')
   const previous = toNonNegativeNumber(previousCalories, 'previous food calories')
   const next = toNonNegativeNumber(nextCalories, 'next food calories')
   const storedEntry = records.processedFoodEntries[foodId]
   const countedCalories = storedEntry ? storedEntry.calories : previous
+  const genre = foodDetails.genre || storedEntry?.genre || null
+  const recordsWithGenre = recordCreatedGenre(records, genre)
+  const genreStatsEligible = storedEntry?.genreStatsEligible === true
+  const delta = next - countedCalories
+  const entryForHistory = {
+    ...storedEntry,
+    ...foodDetails,
+    registeredAt: storedEntry?.registeredAt || foodDetails.registeredAt || null,
+    calories: next,
+  }
+  const processedFoodEntry = createFoodHistoryEntry(
+    entryForHistory,
+    foodId,
+    genre,
+    genreStatsEligible,
+  )
 
   return {
-    ...records,
-    lifetimeCalories: Math.max(0, records.lifetimeCalories + next - countedCalories),
+    ...recordsWithGenre,
+    lifetimeCalories: Math.max(0, records.lifetimeCalories + delta),
+    lifetimeCaloriesByGenre: genreStatsEligible
+      ? updateGenreLifetimeCalories(recordsWithGenre, genre, delta)
+      : recordsWithGenre.lifetimeCaloriesByGenre,
     processedFoodEntries: {
-      ...records.processedFoodEntries,
-      [foodId]: {
-        calories: next,
-        registeredAt: storedEntry?.registeredAt || null,
-      },
+      ...recordsWithGenre.processedFoodEntries,
+      [foodId]: processedFoodEntry,
     },
+  }
+}
+
+export function recordCelestialBodyCreated(records, genre) {
+  const withGenre = recordCreatedGenre(records, genre)
+  return {
+    ...withGenre,
+    lifetimeCelestialBodyCount: records.lifetimeCelestialBodyCount + 1,
   }
 }
 
@@ -344,21 +455,51 @@ export function reconcileAchievementRecords(records, stars = []) {
       }
       const previousEntry = reconciled.processedFoodEntries[food.id]
       if (!previousEntry) {
-        reconciled = recordFoodRegistration(reconciled, food)
+        reconciled = recordFoodRegistration(reconciled, food, star?.genre)
       } else {
+        reconciled = recordFoodEdit(
+          reconciled,
+          food.id,
+          previousEntry.calories,
+          calories,
+          { ...food, genre: star?.genre },
+        )
         const registeredAt = previousEntry.registeredAt || food.registeredAt
         const registrationDates = addRegistrationDate(reconciled.registrationDates, registeredAt)
         if (registrationDates !== reconciled.registrationDates) {
           reconciled = { ...reconciled, registrationDates }
-        }
-        if (calories !== previousEntry.calories) {
-          reconciled = recordFoodEdit(reconciled, food.id, previousEntry.calories, calories)
         }
       }
     })
   })
 
   return reconciled
+}
+
+const migrateCurrentFoodHistory = (records, stars) => {
+  const processedFoodEntries = { ...records.processedFoodEntries }
+  const safeStars = Array.isArray(stars) ? stars : []
+
+  safeStars.forEach((star) => {
+    const foods = Array.isArray(star?.foods) ? star.foods : []
+    foods.forEach((food) => {
+      if (!food || typeof food.id !== 'string' || !food.id) return
+      const previousEntry = processedFoodEntries[food.id]
+      const entryForHistory = {
+        ...food,
+        calories: previousEntry ? previousEntry.calories : getLegacyFoodCalories(food),
+        registeredAt: previousEntry?.registeredAt || food.registeredAt,
+      }
+      processedFoodEntries[food.id] = createFoodHistoryEntry(
+        entryForHistory,
+        food.id,
+        star?.genre,
+        false,
+      )
+    })
+  })
+
+  return { ...records, processedFoodEntries }
 }
 
 export function saveAchievementRecords(storage, records) {
@@ -409,6 +550,20 @@ export function loadAchievementRecords(storage, currentStars = []) {
     console.warn('実績データの形式が不正です。既存の星データから初期化します。', error)
     saveAchievementRecords(storage, fallbackRecords)
     return { records: fallbackRecords, canPersist: true }
+  }
+
+  if (parsedData.version < ACHIEVEMENT_DATA_VERSION) {
+    const safeStars = Array.isArray(currentStars) ? currentStars : []
+    records = {
+      ...records,
+      lifetimeCaloriesByGenre: {},
+      lifetimeCelestialBodyCount: Math.max(
+        records.lifetimeCelestialBodyCount,
+        safeStars.length,
+        records.createdGenres.length,
+      ),
+    }
+    records = migrateCurrentFoodHistory(records, safeStars)
   }
 
   const reconciledRecords = reconcileAchievementRecords(records, currentStars)
