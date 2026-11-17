@@ -11,6 +11,10 @@ import { CELESTIAL_BODIES } from './data/celestialBodies.js'
 import { CELESTIAL_BODY_DETAILS } from './data/celestialBodyDetails.js'
 import { ACHIEVEMENTS } from './data/achievements.js'
 import { createDailyCalorieSeries } from './data/calorieTrend.js'
+import {
+  createGenreCalorieBreakdown,
+  getGenreCalorieColor,
+} from './data/genreCalorieBreakdown.js'
 import { createMealCalendarMonth, shiftCalendarMonth } from './data/mealCalendar.js'
 import { getStatisticsDateRange } from './data/statisticsDateRange.js'
 import {
@@ -27,6 +31,7 @@ import {
 const DEFAULT_INFO_TEXT = '星を選択してください'
 const ORBIT_MARGIN = 6 // 星と星の間に確保する余白。後で調整しやすいように定数化。
 const STAT_NUMBER_FORMAT = new Intl.NumberFormat('ja-JP')
+const GENRE_PERCENT_FORMAT = new Intl.NumberFormat('ja-JP', { maximumFractionDigits: 1 })
 const CALORIE_TREND_PERIOD_LABELS = {
   '7d': '7日',
   '30d': '30日',
@@ -1159,11 +1164,111 @@ class SpaceDebrisApp {
       const element = document.getElementById(id)
       if (element) element.textContent = value
     })
+    this.renderGenreCalorieBreakdown()
     if (this.statisticsDisplayMode === 'calendar') {
       this.renderMealCalendar()
     } else {
       this.renderCalorieTrendChart()
     }
+  }
+
+  renderGenreCalorieBreakdown() {
+    const svg = document.getElementById('genreCalorieChart')
+    const legend = document.getElementById('genreCalorieLegend')
+    const emptyMessage = document.getElementById('genreCalorieEmpty')
+    if (!svg || !legend || !emptyMessage) return
+
+    const { totalCalories, genres } = createGenreCalorieBreakdown(this.achievementRecords)
+    const center = 120
+    const radius = 76
+    const circumference = 2 * Math.PI * radius
+    const totalLabel = STAT_NUMBER_FORMAT.format(totalCalories)
+
+    svg.replaceChildren()
+    svg.setAttribute('viewBox', '0 0 240 240')
+    svg.setAttribute(
+      'aria-label',
+      genres.length
+        ? `ジャンル別累計カロリー。合計 ${totalLabel} kcal。ジャンルと割合は凡例を参照してください。`
+        : 'ジャンル別累計カロリーの記録はありません。',
+    )
+    const title = createSvgElement('title')
+    title.textContent = 'ジャンル別カロリー割合'
+    svg.appendChild(title)
+
+    svg.appendChild(createSvgElement('circle', {
+      cx: center,
+      cy: center,
+      r: radius,
+      class: 'genre-calorie-track',
+    }))
+
+    let offset = 0
+    genres.forEach((item) => {
+      const segmentLength = circumference * item.percentage / 100
+      const gap = Math.min(3, Math.max(0, segmentLength - 0.8))
+      const visibleLength = segmentLength - gap
+      if (visibleLength > 0) {
+        const segment = createSvgElement('circle', {
+          cx: center,
+          cy: center,
+          r: radius,
+          class: 'genre-calorie-segment',
+          stroke: getGenreCalorieColor(item.genre),
+          transform: `rotate(-90 ${center} ${center})`,
+        })
+        if (item.percentage < 100) {
+          segment.setAttribute('stroke-dasharray', `${visibleLength} ${circumference - visibleLength}`)
+          segment.setAttribute('stroke-dashoffset', String(-offset))
+        }
+        const segmentTitle = createSvgElement('title')
+        segmentTitle.textContent =
+          `${item.genre}: ${STAT_NUMBER_FORMAT.format(item.calories)} kcal ` +
+          `(${GENRE_PERCENT_FORMAT.format(item.percentage)}%)`
+        segment.appendChild(segmentTitle)
+        svg.appendChild(segment)
+      }
+      offset += segmentLength
+    })
+
+    const totalText = createSvgElement('text', {
+      x: center,
+      y: center + 2,
+      class: 'genre-calorie-center-total',
+      'font-size': Math.min(18, Math.max(10, 168 / Math.max(totalLabel.length, 1))),
+    })
+    totalText.textContent = totalLabel
+    svg.appendChild(totalText)
+
+    const unitText = createSvgElement('text', {
+      x: center,
+      y: center + 20,
+      class: 'genre-calorie-center-label',
+    })
+    unitText.textContent = 'kcal 合計'
+    svg.appendChild(unitText)
+
+    emptyMessage.hidden = genres.length > 0
+    legend.replaceChildren()
+    genres.forEach((item) => {
+      const row = createTextElement('li', 'genre-calorie-legend-item')
+      const name = createTextElement('span', 'genre-calorie-legend-name')
+      const swatch = createTextElement('span', 'genre-calorie-swatch')
+      swatch.style.backgroundColor = getGenreCalorieColor(item.genre)
+      swatch.setAttribute('aria-hidden', 'true')
+      name.append(
+        swatch,
+        createTextElement('span', '', item.genre),
+      )
+
+      const values = createTextElement('span', 'genre-calorie-legend-values')
+      values.append(
+        createTextElement('span', '', `${STAT_NUMBER_FORMAT.format(item.calories)} kcal`),
+        createTextElement('strong', '', `${GENRE_PERCENT_FORMAT.format(item.percentage)}%`),
+      )
+      row.append(name, values)
+      legend.appendChild(row)
+    })
   }
 
   setStatisticsDisplayMode(mode) {

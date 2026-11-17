@@ -199,6 +199,21 @@
                                 </div>
                             </section>
                         </section>
+                        <section class="statistics-genre-panel" aria-labelledby="genreCalorieHeading">
+                            <header class="statistics-genre-header">
+                                <div>
+                                    <h2 id="genreCalorieHeading">ジャンル別カロリー割合</h2>
+                                    <p>生涯ジャンル別累計</p>
+                                </div>
+                            </header>
+                            <div class="statistics-genre-content">
+                                <div class="genre-calorie-chart-wrap">
+                                    <svg id="genreCalorieChart" viewBox="0 0 240 240" role="img" aria-label="ジャンル別カロリー割合"></svg>
+                                    <p class="genre-calorie-empty" id="genreCalorieEmpty" hidden>ジャンル別の記録はありません。</p>
+                                </div>
+                                <ul class="genre-calorie-legend" id="genreCalorieLegend" aria-label="ジャンル別カロリーの凡例"></ul>
+                            </div>
+                        </section>
                     </div>
                 </main>
                 <section class="achievement-detail-overlay" id="achievementDetailOverlay" role="dialog" aria-modal="true" aria-labelledby="achievementDetailHeading" aria-hidden="true" inert>
