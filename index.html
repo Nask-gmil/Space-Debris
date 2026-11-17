@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Space Debris - Three.js</title>
-  <script type="module" crossorigin src="./assets/index-VmR5poFd.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-B_3Wa-kA.css">
+  <script type="module" crossorigin src="./assets/index-_5sBrN8i.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-Cdnl-8y1.css">
 </head>
 <body>
     <div class="app">
@@ -15,6 +15,9 @@
             </button>
             <button type="button" class="achievements-open-button" id="achievementsOpenButton" aria-haspopup="dialog" aria-controls="encyclopediaOverlay">
                 🏆 実績
+            </button>
+            <button type="button" class="statistics-open-button" id="statisticsOpenButton" aria-haspopup="dialog" aria-controls="encyclopediaOverlay">
+                📊 統計
             </button>
         </div>
         <aside class="input-panel" id="inputPanel" aria-label="食べ物登録フォーム">
@@ -74,7 +77,7 @@
                     <nav class="encyclopedia-tabs" aria-label="図鑑メニュー">
                         <button type="button" class="encyclopedia-tab is-active" data-archive-view="encyclopedia" aria-current="page">✧ 図鑑</button>
                         <button type="button" class="encyclopedia-tab" data-archive-view="achievements">♧ 実績</button>
-                        <button type="button" class="encyclopedia-tab" disabled>◷ 統計</button>
+                        <button type="button" class="encyclopedia-tab" data-archive-view="statistics">◷ 統計</button>
                     </nav>
                     <button type="button" class="encyclopedia-close-button" id="encyclopediaCloseButton" aria-label="図鑑を閉じる">×</button>
                 </header>
@@ -116,6 +119,88 @@
                         <div class="achievement-grid" id="achievementGrid" aria-label="実績一覧"></div>
                     </section>
                     <p class="achievement-note">※ 未取得の実績は、内容の一部が隠されています。実績を獲得すると詳細が解放されます。</p>
+                </main>
+                <main class="statistics-content" id="statisticsView" aria-label="統計" hidden>
+                    <section class="statistics-summary" aria-label="生涯統計">
+                        <article class="statistics-card">
+                            <span class="statistics-icon" aria-hidden="true">🔥</span>
+                            <div class="statistics-card-copy">
+                                <h2>累計カロリー</h2>
+                                <p id="lifetimeCaloriesValue" aria-live="polite">0 kcal</p>
+                            </div>
+                        </article>
+                        <article class="statistics-card">
+                            <span class="statistics-icon" aria-hidden="true">🍽️</span>
+                            <div class="statistics-card-copy">
+                                <h2>食事登録数</h2>
+                                <p id="lifetimeRegistrationCountValue" aria-live="polite">0 件</p>
+                            </div>
+                        </article>
+                        <article class="statistics-card">
+                            <span class="statistics-icon" aria-hidden="true">🌌</span>
+                            <div class="statistics-card-copy">
+                                <h2>育成天体数</h2>
+                                <p id="lifetimeCelestialBodyCountValue" aria-live="polite">0 個</p>
+                            </div>
+                        </article>
+                        <article class="statistics-card">
+                            <span class="statistics-icon" aria-hidden="true">📅</span>
+                            <div class="statistics-card-copy">
+                                <h2>記録した日数</h2>
+                                <p id="recordedDaysValue" aria-live="polite">0 日</p>
+                            </div>
+                        </article>
+                    </section>
+                    <div class="statistics-detail-layout">
+                        <section class="statistics-chart-panel" aria-labelledby="calorieTrendHeading">
+                            <header class="statistics-chart-header">
+                                <div>
+                                    <h2 id="calorieTrendHeading">カロリー推移</h2>
+                                    <p>日ごとの摂取カロリー</p>
+                                </div>
+                                <div class="statistics-chart-controls">
+                                    <div class="statistics-view-switch" role="group" aria-label="統計表示">
+                                        <button type="button" class="statistics-view-button is-active" data-statistics-display="chart" aria-pressed="true">グラフ</button>
+                                        <button type="button" class="statistics-view-button" data-statistics-display="calendar" aria-pressed="false">カレンダー</button>
+                                    </div>
+                                    <div class="statistics-period-switch" id="calorieTrendPeriods" role="group" aria-label="グラフの期間">
+                                        <button type="button" class="statistics-period-button is-active" data-calorie-period="7d" aria-pressed="true">7日</button>
+                                        <button type="button" class="statistics-period-button" data-calorie-period="30d" aria-pressed="false">30日</button>
+                                        <button type="button" class="statistics-period-button" data-calorie-period="1y" aria-pressed="false">1年</button>
+                                    </div>
+                                </div>
+                            </header>
+                            <div class="statistics-chart-wrap statistics-chart-view" id="calorieTrendView">
+                                <svg id="calorieTrendChart" role="img" aria-label="日別カロリー推移グラフ"></svg>
+                            </div>
+                            <section class="meal-calendar-view" id="mealCalendarView" aria-label="食事カレンダー" hidden>
+                                <div class="meal-calendar-layout">
+                                    <section class="meal-calendar">
+                                        <header class="meal-calendar-header">
+                                            <div class="meal-calendar-month-controls">
+                                                <button type="button" class="meal-calendar-nav-button" id="mealCalendarPreviousMonth" aria-label="前月">‹</button>
+                                                <h3 id="mealCalendarMonthLabel" aria-live="polite"></h3>
+                                                <button type="button" class="meal-calendar-nav-button" id="mealCalendarNextMonth" aria-label="翌月">›</button>
+                                            </div>
+                                            <button type="button" class="meal-calendar-today-button" id="mealCalendarTodayButton">今月</button>
+                                        </header>
+                                        <div class="meal-calendar-weekdays" aria-hidden="true">
+                                            <span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span><span>日</span>
+                                        </div>
+                                        <div class="meal-calendar-days" id="mealCalendarDays" role="group" aria-label="日付を選択"></div>
+                                    </section>
+                                    <section class="meal-day-details" aria-label="選択した日の食事履歴" aria-live="polite">
+                                        <header class="meal-day-details-header">
+                                            <h3 id="selectedMealDate">日付を選択してください</h3>
+                                            <p id="selectedMealTotal"></p>
+                                        </header>
+                                        <p class="meal-calendar-empty" id="mealCalendarEmpty" hidden>この日の食事記録はありません。</p>
+                                        <ul class="meal-calendar-food-list" id="mealCalendarFoodList" hidden></ul>
+                                    </section>
+                                </div>
+                            </section>
+                        </section>
+                    </div>
                 </main>
                 <section class="achievement-detail-overlay" id="achievementDetailOverlay" role="dialog" aria-modal="true" aria-labelledby="achievementDetailHeading" aria-hidden="true" inert>
                     <article class="achievement-detail-card">
