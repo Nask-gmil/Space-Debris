@@ -1,4 +1,4 @@
-import { getJapanDateKey } from './achievementRecords.js'
+import { getJapanDateKey } from './japanDate.js'
 
 const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000
 const DAYS_BY_PERIOD = {

@@ -1,15 +1,11 @@
 import { Constants } from '../utils/constants.js'
+import { getJapanDateKey } from './japanDate.js'
+import { getStatisticsDateRange } from './statisticsDateRange.js'
 
 export const ACHIEVEMENT_STORAGE_KEY = 'spaceDebrisAchievementData'
 export const ACHIEVEMENT_DATA_VERSION = 3
 
-const TOKYO_TIME_ZONE = 'Asia/Tokyo'
-const datePartsFormatter = new Intl.DateTimeFormat('en', {
-  timeZone: TOKYO_TIME_ZONE,
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-})
+export { getJapanDateKey } from './japanDate.js'
 
 const toNonNegativeNumber = (value, label) => {
   const number = Number(value)
@@ -64,17 +60,6 @@ const getCanonicalGenre = (genres, genre) => {
   if (typeof genre !== 'string' || !genre.trim()) return null
   const normalizedGenre = genre.trim()
   return genres.find((item) => item.toLowerCase() === normalizedGenre.toLowerCase()) || normalizedGenre
-}
-
-export function getJapanDateKey(value) {
-  if (value == null || value === '') return null
-  const date = value instanceof Date ? value : new Date(value)
-  if (Number.isNaN(date.getTime())) return null
-
-  const parts = Object.fromEntries(
-    datePartsFormatter.formatToParts(date).map(({ type, value: partValue }) => [type, partValue])
-  )
-  return `${parts.year}-${parts.month}-${parts.day}`
 }
 
 export function createInitialAchievementRecords(stars = []) {
@@ -343,7 +328,8 @@ export function recordFoodEdit(records, foodId, previousCalories, nextCalories, 
   const countedCalories = storedEntry ? storedEntry.calories : previous
   const genre = foodDetails.genre || storedEntry?.genre || null
   const recordsWithGenre = recordCreatedGenre(records, genre)
-  const genreStatsEligible = storedEntry?.genreStatsEligible === true
+  const genreStatsEligible = storedEntry?.genreStatsEligible === true ||
+    foodDetails.genreStatsEligible === true
   const delta = next - countedCalories
   const entryForHistory = {
     ...storedEntry,
@@ -434,9 +420,10 @@ export function recordAchievementUnlock(records, achievementId, unlockedAt = new
   }
 }
 
-export function reconcileAchievementRecords(records, stars = []) {
+export function reconcileAchievementRecords(records, stars = [], now = new Date()) {
   let reconciled = records
   const safeStars = Array.isArray(stars) ? stars : []
+  const { startDateKey, endDateKey } = getStatisticsDateRange('1y', now)
 
   safeStars.forEach((star) => {
     reconciled = recordCreatedGenre(reconciled, star?.genre)
@@ -455,6 +442,8 @@ export function reconcileAchievementRecords(records, stars = []) {
       }
       const previousEntry = reconciled.processedFoodEntries[food.id]
       if (!previousEntry) {
+        const registeredDate = getJapanDateKey(food.registeredAt)
+        if (!registeredDate || registeredDate < startDateKey || registeredDate > endDateKey) return
         reconciled = recordFoodRegistration(reconciled, food, star?.genre)
       } else {
         reconciled = recordFoodEdit(
@@ -474,6 +463,32 @@ export function reconcileAchievementRecords(records, stars = []) {
   })
 
   return reconciled
+}
+
+export function pruneExpiredFoodHistory(records, now = new Date()) {
+  const { startDateKey, endDateKey } = getStatisticsDateRange('1y', now)
+  const processedFoodEntries = Object.fromEntries(
+    Object.entries(records.processedFoodEntries).filter(([, entry]) => {
+      const registeredDate = getJapanDateKey(entry.registeredAt)
+      return registeredDate && registeredDate >= startDateKey && registeredDate <= endDateKey
+    }),
+  )
+
+  if (Object.keys(processedFoodEntries).length === Object.keys(records.processedFoodEntries).length) {
+    return records
+  }
+  return { ...records, processedFoodEntries }
+}
+
+const preserveGenreStatsEligibility = (records, stars) => {
+  const safeStars = Array.isArray(stars) ? stars : []
+  safeStars.forEach((star) => {
+    const foods = Array.isArray(star?.foods) ? star.foods : []
+    foods.forEach((food) => {
+      const storedEntry = records.processedFoodEntries[food?.id]
+      if (storedEntry) food.genreStatsEligible = storedEntry.genreStatsEligible === true
+    })
+  })
 }
 
 const migrateCurrentFoodHistory = (records, stars) => {
@@ -502,9 +517,12 @@ const migrateCurrentFoodHistory = (records, stars) => {
   return { ...records, processedFoodEntries }
 }
 
-export function saveAchievementRecords(storage, records) {
+export function saveAchievementRecords(storage, records, now = new Date()) {
   try {
-    storage.setItem(ACHIEVEMENT_STORAGE_KEY, JSON.stringify(records))
+    storage.setItem(
+      ACHIEVEMENT_STORAGE_KEY,
+      JSON.stringify(pruneExpiredFoodHistory(records, now)),
+    )
     return true
   } catch (error) {
     console.warn('実績データの保存に失敗しました。', error)
@@ -512,7 +530,7 @@ export function saveAchievementRecords(storage, records) {
   }
 }
 
-export function loadAchievementRecords(storage, currentStars = []) {
+export function loadAchievementRecords(storage, currentStars = [], now = new Date()) {
   const fallbackRecords = createInitialAchievementRecords(currentStars)
   let rawData
 
@@ -524,8 +542,10 @@ export function loadAchievementRecords(storage, currentStars = []) {
   }
 
   if (rawData === null) {
-    const records = reconcileAchievementRecords(fallbackRecords, currentStars)
-    saveAchievementRecords(storage, records)
+    const reconciledRecords = reconcileAchievementRecords(fallbackRecords, currentStars, now)
+    preserveGenreStatsEligibility(reconciledRecords, currentStars)
+    const records = pruneExpiredFoodHistory(reconciledRecords, now)
+    saveAchievementRecords(storage, records, now)
     return { records, canPersist: true }
   }
 
@@ -534,13 +554,15 @@ export function loadAchievementRecords(storage, currentStars = []) {
     parsedData = JSON.parse(rawData)
   } catch (error) {
     console.warn('実績データを解析できませんでした。既存の星データから初期化します。', error)
-    saveAchievementRecords(storage, fallbackRecords)
-    return { records: fallbackRecords, canPersist: true }
+    preserveGenreStatsEligibility(fallbackRecords, currentStars)
+    const records = pruneExpiredFoodHistory(fallbackRecords, now)
+    saveAchievementRecords(storage, records, now)
+    return { records, canPersist: true }
   }
 
   if (parsedData?.version > ACHIEVEMENT_DATA_VERSION) {
     console.warn('この実績データは新しい形式です。上書きせず、今回の変更はメモリ内に保持します。')
-    return { records: fallbackRecords, canPersist: false }
+    return { records: pruneExpiredFoodHistory(fallbackRecords, now), canPersist: false }
   }
 
   let records
@@ -548,8 +570,10 @@ export function loadAchievementRecords(storage, currentStars = []) {
     records = normalizeAchievementRecords(parsedData)
   } catch (error) {
     console.warn('実績データの形式が不正です。既存の星データから初期化します。', error)
-    saveAchievementRecords(storage, fallbackRecords)
-    return { records: fallbackRecords, canPersist: true }
+    preserveGenreStatsEligibility(fallbackRecords, currentStars)
+    const records = pruneExpiredFoodHistory(fallbackRecords, now)
+    saveAchievementRecords(storage, records, now)
+    return { records, canPersist: true }
   }
 
   if (parsedData.version < ACHIEVEMENT_DATA_VERSION) {
@@ -566,10 +590,12 @@ export function loadAchievementRecords(storage, currentStars = []) {
     records = migrateCurrentFoodHistory(records, safeStars)
   }
 
-  const reconciledRecords = reconcileAchievementRecords(records, currentStars)
+  const reconciledRecords = reconcileAchievementRecords(records, currentStars, now)
+  preserveGenreStatsEligibility(reconciledRecords, currentStars)
+  const retainedRecords = pruneExpiredFoodHistory(reconciledRecords, now)
   if (parsedData.version !== ACHIEVEMENT_DATA_VERSION ||
-      JSON.stringify(reconciledRecords) !== JSON.stringify(records)) {
-    saveAchievementRecords(storage, reconciledRecords)
+      JSON.stringify(retainedRecords) !== JSON.stringify(records)) {
+    saveAchievementRecords(storage, retainedRecords, now)
   }
-  return { records: reconciledRecords, canPersist: true }
+  return { records: retainedRecords, canPersist: true }
 }

@@ -6,6 +6,7 @@ import {
   createInitialAchievementRecords,
   getJapanDateKey,
   loadAchievementRecords,
+  pruneExpiredFoodHistory,
   recordAchievementUnlock,
   recordCelestialBodyCreated,
   recordCreatedGenre,
@@ -118,12 +119,13 @@ test('reconciliation applies missing edits and registrations without losing dele
   let records = createInitialAchievementRecords([{ genre: '麺', calories: 300, foods: [firstFood] }])
   const editedFood = { ...firstFood, calories: 500, name: 'Edited meal' }
   const newFood = { ...makeFood('food-2', 200, '2025-04-02T03:00:00.000Z'), name: 'New meal' }
+  const now = new Date('2025-04-02T03:00:00.000Z')
   records = reconcileAchievementRecords(records, [
     { genre: '麺', calories: 700, foods: [editedFood, newFood] },
-  ])
+  ], now)
   records = recordGenreEvolutionStage(records, '麺', '巨大惑星')
 
-  const afterSupernova = reconcileAchievementRecords(records, [])
+  const afterSupernova = reconcileAchievementRecords(records, [], now)
   assert.equal(afterSupernova.lifetimeRegistrationCount, 2)
   assert.equal(afterSupernova.lifetimeCalories, 700)
   assert.deepEqual(afterSupernova.lifetimeCaloriesByGenre, { 麺: 200 })
@@ -134,6 +136,125 @@ test('reconciliation applies missing edits and registrations without losing dele
   assert.equal(afterSupernova.lifetimeCelestialBodyCount, 1)
   assert.equal(afterSupernova.processedFoodEntries['food-1'].name, 'Edited meal')
   assert.equal(afterSupernova.processedFoodEntries['food-2'].name, 'New meal')
+})
+
+test('prunes detailed food history outside the rolling JST year but preserves lifetime totals', () => {
+  const now = new Date('2026-11-17T12:00:00.000Z')
+  const records = {
+    ...createInitialAchievementRecords(),
+    lifetimeRegistrationCount: 9,
+    lifetimeCalories: 4200,
+    lifetimeCaloriesByGenre: { 寿司: 1200 },
+    processedFoodEntries: {
+      before: {
+        id: 'before',
+        calories: 100,
+        registeredAt: '2025-11-16T14:59:59.000Z',
+        name: '期限前',
+        storeName: null,
+        genre: '寿司',
+        genreStatsEligible: true,
+      },
+      boundary: {
+        id: 'boundary',
+        calories: 200,
+        registeredAt: '2025-11-16T15:00:00.000Z',
+        name: '境界日',
+        storeName: null,
+        genre: '寿司',
+        genreStatsEligible: true,
+      },
+      future: {
+        id: 'future',
+        calories: 300,
+        registeredAt: '2026-11-18T00:00:00.000Z',
+        name: '未来',
+        storeName: null,
+        genre: '寿司',
+        genreStatsEligible: true,
+      },
+    },
+  }
+
+  const retained = pruneExpiredFoodHistory(records, now)
+
+  assert.deepEqual(Object.keys(retained.processedFoodEntries), ['boundary'])
+  assert.equal(retained.lifetimeRegistrationCount, 9)
+  assert.equal(retained.lifetimeCalories, 4200)
+  assert.deepEqual(retained.lifetimeCaloriesByGenre, { 寿司: 1200 })
+  assert.equal(Object.keys(records.processedFoodEntries).length, 3)
+
+  const storage = createStorage()
+  storage.values.set(ACHIEVEMENT_STORAGE_KEY, JSON.stringify(records))
+  const loaded = loadAchievementRecords(storage, [], now)
+  const saved = JSON.parse(storage.getItem(ACHIEVEMENT_STORAGE_KEY))
+  assert.deepEqual(Object.keys(loaded.records.processedFoodEntries), ['boundary'])
+  assert.deepEqual(Object.keys(saved.processedFoodEntries), ['boundary'])
+  assert.equal(loaded.records.lifetimeCalories, 4200)
+})
+
+test('does not re-add expired food from current stars after its detailed history expires', () => {
+  const now = new Date('2026-11-17T12:00:00.000Z')
+  const records = {
+    ...createInitialAchievementRecords(),
+    lifetimeRegistrationCount: 1,
+    lifetimeCalories: 300,
+    processedFoodEntries: {},
+  }
+  const reconciled = reconcileAchievementRecords(records, [{
+    genre: '麺',
+    calories: 300,
+    foods: [makeFood('expired-food', 300, '2025-11-16T14:59:59.000Z')],
+  }], now)
+
+  assert.equal(reconciled.lifetimeRegistrationCount, 1)
+  assert.equal(reconciled.lifetimeCalories, 300)
+  assert.equal(reconciled.processedFoodEntries['expired-food'], undefined)
+})
+
+test('edits to expired eligible meals still update lifetime genre totals without restoring history', () => {
+  const now = new Date('2026-11-17T12:00:00.000Z')
+  const records = {
+    ...createInitialAchievementRecords(),
+    lifetimeRegistrationCount: 1,
+    lifetimeCalories: 400,
+    lifetimeCaloriesByGenre: { 麺: 400 },
+  }
+  const edited = recordFoodEdit(records, 'expired-food', 400, 450, {
+    genre: '麺',
+    genreStatsEligible: true,
+    registeredAt: '2025-10-01T03:00:00.000Z',
+  })
+  const retained = pruneExpiredFoodHistory(edited, now)
+
+  assert.equal(retained.lifetimeCalories, 450)
+  assert.deepEqual(retained.lifetimeCaloriesByGenre, { 麺: 450 })
+  assert.equal(retained.processedFoodEntries['expired-food'], undefined)
+})
+
+test('preserves genre eligibility on active star foods when their history expires', () => {
+  const now = new Date('2026-11-17T12:00:00.000Z')
+  const food = {
+    ...makeFood('expired-eligible-food', 400, '2025-10-01T03:00:00.000Z'),
+    name: '過去の食事',
+  }
+  const records = recordFoodRegistration(createInitialAchievementRecords(), food, '麺')
+  const storage = createStorage()
+  storage.values.set(ACHIEVEMENT_STORAGE_KEY, JSON.stringify(records))
+  const star = { genre: '麺', calories: 400, foods: [{ ...food }] }
+  const loaded = loadAchievementRecords(storage, [star], now)
+
+  assert.equal(loaded.records.processedFoodEntries[food.id], undefined)
+  assert.equal(star.foods[0].genreStatsEligible, true)
+
+  const edited = recordFoodEdit(loaded.records, food.id, 400, 500, {
+    genre: '麺',
+    genreStatsEligible: star.foods[0].genreStatsEligible,
+    registeredAt: food.registeredAt,
+  })
+  assert.equal(edited.lifetimeCalories, 500)
+  assert.deepEqual(edited.lifetimeCaloriesByGenre, { 麺: 500 })
+  assert.equal(pruneExpiredFoodHistory(edited, now).processedFoodEntries[food.id], undefined)
 })
 
 test('persists unlock timestamps and reloads without double-counting legacy food', () => {
@@ -250,7 +371,7 @@ test('migrates version 2 records while excluding legacy meals from genre totals'
     genre: '寿司',
     calories: 500,
     foods: [food],
-  }])
+  }], new Date('2025-08-02T03:00:00.000Z'))
   const saved = JSON.parse(storage.getItem(ACHIEVEMENT_STORAGE_KEY))
 
   assert.equal(loaded.records.version, ACHIEVEMENT_DATA_VERSION)

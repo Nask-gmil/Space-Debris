@@ -19,6 +19,7 @@ import { createMealCalendarMonth, shiftCalendarMonth } from './data/mealCalendar
 import { getStatisticsDateRange } from './data/statisticsDateRange.js'
 import {
   loadAchievementRecords as loadStoredAchievementRecords,
+  pruneExpiredFoodHistory,
   recordAchievementUnlock,
   recordCelestialBodyCreated,
   recordFoodEdit,
@@ -1082,6 +1083,13 @@ class SpaceDebrisApp {
   saveData() {
     this.reconcileAchievementDataWithCurrentStars()
     const stars = this.universe.getStarManager().getAllStars()
+    stars.forEach((star) => {
+      const foods = Array.isArray(star.data.foods) ? star.data.foods : []
+      foods.forEach((food) => {
+        const historyEntry = this.achievementRecords.processedFoodEntries[food.id]
+        if (historyEntry) food.genreStatsEligible = historyEntry.genreStatsEligible === true
+      })
+    })
     const serializableStars = stars.map((star) => {
       if (typeof star.getSerializableData === 'function') {
         return star.getSerializableData()
@@ -1585,6 +1593,7 @@ class SpaceDebrisApp {
 
   saveAchievementData() {
     if (!this.canPersistAchievementData) return
+    this.achievementRecords = pruneExpiredFoodHistory(this.achievementRecords)
     persistAchievementRecords(localStorage, this.achievementRecords)
   }
 
@@ -2142,6 +2151,9 @@ class SpaceDebrisApp {
     const foodName = foodNameInput ? foodNameInput.value.trim() : ''
     const calories = caloriesInput ? Number(caloriesInput.value) : entry.calories
     const previousCalories = Number(entry.calories)
+    const storedFoodHistory = this.achievementRecords.processedFoodEntries[entry.id]
+    const genreStatsEligible = entry.genreStatsEligible === true ||
+      storedFoodHistory?.genreStatsEligible === true
     if (!Number.isFinite(calories) || calories < 0) {
       caloriesInput?.setCustomValidity('カロリーは0以上で入力してください。')
       caloriesInput?.reportValidity()
@@ -2161,11 +2173,13 @@ class SpaceDebrisApp {
         storeName,
         registeredAt: entry.registeredAt,
         genre: star.data.genre,
+        genreStatsEligible,
       },
     )
     entry.name = foodName
     entry.storeName = storeName
     entry.calories = calories
+    entry.genreStatsEligible = genreStatsEligible
 
     // 食事データが変わったので、星の総カロリー・進化段階・見た目を計算し直す。
     // これは削除処理(deleteSelectedFoodEntry)で使っているのと全く同じ、既存の再計算処理。
